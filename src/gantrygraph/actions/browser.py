@@ -98,8 +98,7 @@ class BrowserTools(BaseAction):
             page: Page = await self._web_page._ensure_page()
             return page
         if self._page is None:
-            ctx = async_playwright()
-            self._playwright_ctx = await ctx.__aenter__()
+            self._playwright_ctx = await async_playwright().start()
             launcher = getattr(self._playwright_ctx, self._browser_type)
             self._browser = await launcher.launch(headless=self._headless)
             self._page = await self._browser.new_page()
@@ -114,7 +113,7 @@ class BrowserTools(BaseAction):
             self._browser = None
             self._page = None
         if self._playwright_ctx:
-            await self._playwright_ctx.__aexit__(None, None, None)
+            await self._playwright_ctx.stop()
             self._playwright_ctx = None
 
     def get_tools(self) -> list[BaseTool]:
