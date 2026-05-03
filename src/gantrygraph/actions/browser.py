@@ -8,15 +8,18 @@ Requires the ``[browser]`` extra::
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
 from gantrygraph.core.base_action import BaseAction
 
+if TYPE_CHECKING:
+    from playwright.async_api import Playwright
+
 try:
-    from playwright.async_api import (  # type: ignore[import-not-found]
+    from playwright.async_api import (
         Browser,
         Page,
         async_playwright,
@@ -87,18 +90,20 @@ class BrowserTools(BaseAction):
         self._web_page = web_page  # shared WebPage for coordinated perception+action
         self._browser: Browser | None = None
         self._page: Page | None = None
-        self._playwright_ctx = None
+        self._playwright_ctx: Playwright | None = None
 
     async def _ensure_browser(self) -> Page:
         # If sharing a WebPage, delegate browser lifecycle to it
         if self._web_page is not None:
-            return await self._web_page._ensure_page()
+            page: Page = await self._web_page._ensure_page()
+            return page
         if self._page is None:
             ctx = async_playwright()
             self._playwright_ctx = await ctx.__aenter__()
             launcher = getattr(self._playwright_ctx, self._browser_type)
             self._browser = await launcher.launch(headless=self._headless)
             self._page = await self._browser.new_page()
+        assert self._page is not None
         return self._page
 
     async def close(self) -> None:

@@ -62,7 +62,7 @@ class OTelExporter:
 
         if otlp_endpoint:
             try:
-                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore[import-not-found]
+                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
                     OTLPSpanExporter,
                 )
 

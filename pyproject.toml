@@ -81,6 +81,18 @@ python_version = "3.11"
 mypy_path = "src"
 explicit_package_bases = true
 
+# Optional extras — ignore if not installed; when installed, stubs take over.
+[[tool.mypy.overrides]]
+module = ["playwright.*", "pyautogui.*", "chromadb.*", "mss.*", "mss.tools.*", "mouseinfo.*", "PIL.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "opentelemetry.*",
+    "opentelemetry.exporter.otlp.proto.grpc.*",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

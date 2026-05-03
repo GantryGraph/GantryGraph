@@ -10,13 +10,16 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from gantrygraph.core.base_perception import BasePerception
 from gantrygraph.core.events import PerceptionResult
 
+if TYPE_CHECKING:
+    from playwright.async_api import Playwright
+
 try:
-    from playwright.async_api import (  # type: ignore[import-not-found]
+    from playwright.async_api import (
         Browser,
         Page,
         async_playwright,
@@ -69,7 +72,7 @@ class WebPage(BasePerception):
         self._include_accessibility = include_accessibility
         self._browser: Browser | None = None
         self._page: Page | None = None
-        self._playwright_ctx = None
+        self._playwright_ctx: Playwright | None = None
 
     async def __aenter__(self) -> WebPage:
         await self._launch()
@@ -114,9 +117,11 @@ class WebPage(BasePerception):
             screenshot_b64 = base64.b64encode(png_bytes).decode("ascii")
 
         if self._include_accessibility:
-            snapshot = await page.accessibility.snapshot()
-            if snapshot:
-                accessibility_tree = json.dumps(snapshot, indent=2)
+            accessibility = getattr(page, "accessibility", None)
+            if accessibility is not None:
+                snapshot = await accessibility.snapshot()
+                if snapshot:
+                    accessibility_tree = json.dumps(snapshot, indent=2)
 
         viewport = page.viewport_size or {"width": 1280, "height": 720}
         return PerceptionResult(
