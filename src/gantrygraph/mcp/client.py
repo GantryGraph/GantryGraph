@@ -78,7 +78,7 @@ class MCPClient(BaseMCPConnector):
 
         result = await self._session.list_tools()
         self._tools = [
-            _make_langchain_tool(t, self._session) for t in result.tools
+            _wrap_mcp_tool(t, self._session) for t in result.tools
         ]
         return self
 
@@ -95,7 +95,7 @@ class MCPClient(BaseMCPConnector):
         return f"MCPClient(command={self._command!r}, tools={tool_names})"
 
 
-def _make_langchain_tool(
+def _wrap_mcp_tool(
     mcp_tool: Any,  # mcp.types.Tool
     session: Any,   # ClientSession
 ) -> StructuredTool:

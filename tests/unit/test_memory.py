@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from gantrygraph.memory.base import BaseMemory, MemoryResult
-from gantrygraph.memory.in_memory import InMemoryVector
+from gantrygraph.memory.in_memory import InMemoryStore
 
 # ── BaseMemory ABC ────────────────────────────────────────────────────────────
 
@@ -25,18 +25,18 @@ def test_memory_result_default_metadata() -> None:
     assert r.metadata == {}
 
 
-# ── InMemoryVector ────────────────────────────────────────────────────────────
+# ── InMemoryStore ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_in_memory_empty_search_returns_nothing() -> None:
-    mem = InMemoryVector()
+    mem = InMemoryStore()
     results = await mem.search("anything")
     assert results == []
 
 
 @pytest.mark.asyncio
 async def test_in_memory_add_and_retrieve() -> None:
-    mem = InMemoryVector()
+    mem = InMemoryStore()
     await mem.add("React hook error in useEffect", {"lang": "js"})
     results = await mem.search("React useEffect hook")
     assert len(results) > 0
@@ -46,7 +46,7 @@ async def test_in_memory_add_and_retrieve() -> None:
 
 @pytest.mark.asyncio
 async def test_in_memory_scores_sorted_descending() -> None:
-    mem = InMemoryVector()
+    mem = InMemoryStore()
     await mem.add("Python list comprehension tutorial")
     await mem.add("JavaScript array map reduce")
     await mem.add("Python for loop iteration guide")
@@ -57,7 +57,7 @@ async def test_in_memory_scores_sorted_descending() -> None:
 
 @pytest.mark.asyncio
 async def test_in_memory_k_limits_results() -> None:
-    mem = InMemoryVector()
+    mem = InMemoryStore()
     for i in range(10):
         await mem.add(f"Python programming tip number {i}")
     results = await mem.search("Python programming", k=3)
@@ -66,7 +66,7 @@ async def test_in_memory_k_limits_results() -> None:
 
 @pytest.mark.asyncio
 async def test_in_memory_no_match_returns_empty() -> None:
-    mem = InMemoryVector()
+    mem = InMemoryStore()
     await mem.add("hello world")
     results = await mem.search("zzzzzzz")
     assert results == []
@@ -74,7 +74,7 @@ async def test_in_memory_no_match_returns_empty() -> None:
 
 @pytest.mark.asyncio
 async def test_in_memory_len() -> None:
-    mem = InMemoryVector()
+    mem = InMemoryStore()
     assert len(mem) == 0
     await mem.add("first")
     await mem.add("second")
@@ -83,13 +83,13 @@ async def test_in_memory_len() -> None:
 
 @pytest.mark.asyncio
 async def test_in_memory_close_is_no_op() -> None:
-    mem = InMemoryVector()
+    mem = InMemoryStore()
     await mem.close()  # should not raise
 
 
 @pytest.mark.asyncio
 async def test_in_memory_metadata_preserved() -> None:
-    mem = InMemoryVector()
+    mem = InMemoryStore()
     meta = {"task": "fix bug", "steps": 5}
     await mem.add("ZeroDivisionError in safe_divide", meta)
     results = await mem.search("ZeroDivisionError safe_divide")
@@ -106,7 +106,7 @@ async def test_engine_stores_result_in_memory() -> None:
 
     from gantrygraph import GantryEngine
 
-    memory = InMemoryVector()
+    memory = InMemoryStore()
     llm = FakeMessagesListChatModel(
         responses=[AIMessage(content="Task completed successfully.")]
     )
@@ -136,7 +136,7 @@ async def test_engine_recalls_memory_on_second_run() -> None:
             captured_messages.extend(messages)
             return await super().ainvoke(messages, **kwargs)
 
-    memory = InMemoryVector()
+    memory = InMemoryStore()
     await memory.add("Task: fix bug\nResult: added zero guard", {"task": "fix bug"})
 
     agent = GantryEngine(llm=SpyLLM(), memory=memory, max_steps=5)

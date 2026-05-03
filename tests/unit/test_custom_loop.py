@@ -112,15 +112,15 @@ async def test_custom_node_injected_between_think_and_act() -> None:
         return {}
 
     llm = _done_llm()
-    llm_with_tools = llm  # no tools needed for this test
+    bound_llm = llm  # no tools needed for this test
 
     graph: StateGraph = StateGraph(GantryState)  # type: ignore[type-arg]
-    graph.add_node("observe",  partial(observe_node,  perception=None, event_cb=None))
-    graph.add_node("think",    partial(think_node,    llm_with_tools=llm_with_tools,
-                                                       event_cb=None))
+    graph.add_node("observe",  partial(observe_node,  perception=None, on_event=None))
+    graph.add_node("think",    partial(think_node,    bound_llm=bound_llm,
+                                                       on_event=None))
     graph.add_node("pre_act",  pre_act_hook)
-    graph.add_node("act",      partial(act_node,      tool_map={}, approval_cb=None,
-                                                       guardrail=None, event_cb=None,
+    graph.add_node("act",      partial(act_node,      tool_map={}, approval_callback=None,
+                                                       guardrail=None, on_event=None,
                                                        use_interrupt=False))
     graph.add_node("review",   review_node)
 
@@ -170,11 +170,11 @@ async def test_custom_node_can_short_circuit_loop() -> None:
     llm = _done_llm()
 
     graph: StateGraph = StateGraph(GantryState)  # type: ignore[type-arg]
-    graph.add_node("observe",    partial(observe_node, perception=None, event_cb=None))
-    graph.add_node("think",      partial(think_node,   llm_with_tools=llm, event_cb=None))
+    graph.add_node("observe",    partial(observe_node, perception=None, on_event=None))
+    graph.add_node("think",      partial(think_node,   bound_llm=llm, on_event=None))
     graph.add_node("killswitch", killswitch)
-    graph.add_node("act",        partial(act_node,     tool_map={}, approval_cb=None,
-                                                        guardrail=None, event_cb=None,
+    graph.add_node("act",        partial(act_node,     tool_map={}, approval_callback=None,
+                                                        guardrail=None, on_event=None,
                                                         use_interrupt=False))
     graph.add_node("review",     review_node)
 
@@ -219,10 +219,10 @@ async def test_event_callback_works_in_custom_graph() -> None:
     llm = _done_llm()
 
     graph: StateGraph = StateGraph(GantryState)  # type: ignore[type-arg]
-    graph.add_node("observe", partial(observe_node, perception=None, event_cb=capture))
-    graph.add_node("think",   partial(think_node,   llm_with_tools=llm, event_cb=capture))
-    graph.add_node("act",     partial(act_node,     tool_map={}, approval_cb=None,
-                                                     guardrail=None, event_cb=capture,
+    graph.add_node("observe", partial(observe_node, perception=None, on_event=capture))
+    graph.add_node("think",   partial(think_node,   bound_llm=llm, on_event=capture))
+    graph.add_node("act",     partial(act_node,     tool_map={}, approval_callback=None,
+                                                     guardrail=None, on_event=capture,
                                                      use_interrupt=False))
     graph.add_node("review",  review_node)
     graph.add_edge(START,     "observe")

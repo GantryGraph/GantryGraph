@@ -104,9 +104,9 @@ async def test_guardrail_blocks_listed_tool_without_callback() -> None:
     update = await act_node(
         state,
         tool_map={"dangerous_delete": dangerous_delete},
-        approval_cb=None,
+        approval_callback=None,
         guardrail=guardrail,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status == "error"
@@ -130,9 +130,9 @@ async def test_guardrail_allows_unlisted_tool() -> None:
     update = await act_node(
         state,
         tool_map={"safe_list": safe_list},
-        approval_cb=None,
+        approval_callback=None,
         guardrail=guardrail,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status != "error"
@@ -155,9 +155,9 @@ async def test_approval_callback_sync_deny() -> None:
     update = await act_node(
         state,
         tool_map={"risky": risky},
-        approval_cb=lambda name, args: False,
+        approval_callback=lambda name, args: False,
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status == "error"
@@ -182,9 +182,9 @@ async def test_approval_callback_async_deny() -> None:
     update = await act_node(
         state,
         tool_map={"risky": risky},
-        approval_cb=async_deny,
+        approval_callback=async_deny,
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status == "error"
@@ -206,9 +206,9 @@ async def test_approval_callback_allow_executes_tool() -> None:
     update = await act_node(
         state,
         tool_map={"approved_tool": approved_tool},
-        approval_cb=lambda name, args: True,
+        approval_callback=lambda name, args: True,
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert "approved result" in tool_msgs[0].content  # type: ignore[operator]

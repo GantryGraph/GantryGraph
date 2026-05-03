@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.tools import BaseTool
 
-from gantrygraph.mcp.client import MCPClient, _json_schema_to_pydantic, _make_langchain_tool
+from gantrygraph.mcp.client import MCPClient, _json_schema_to_pydantic, _wrap_mcp_tool
 
 # ── _json_schema_to_pydantic ─────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ def test_json_schema_to_pydantic_multiple_types() -> None:
     assert instance.count == 5  # type: ignore[attr-defined]
 
 
-# ── _make_langchain_tool ──────────────────────────────────────────────────────
+# ── _wrap_mcp_tool ──────────────────────────────────────────────────────
 
 def _make_mock_mcp_tool(name: str, description: str, schema: dict[str, Any]) -> Any:
     tool = MagicMock()
@@ -73,7 +73,7 @@ def _make_mock_mcp_tool(name: str, description: str, schema: dict[str, Any]) -> 
 
 
 @pytest.mark.asyncio
-async def test_make_langchain_tool_calls_session() -> None:
+async def test_wrap_mcp_tool_calls_session() -> None:
     mock_session = MagicMock()
     content_block = MagicMock()
     content_block.text = "result text"
@@ -87,7 +87,7 @@ async def test_make_langchain_tool_calls_session() -> None:
         "Echo a message",
         {"properties": {"message": {"type": "string"}}, "required": ["message"]},
     )
-    lc_tool = _make_langchain_tool(mcp_tool, mock_session)
+    lc_tool = _wrap_mcp_tool(mcp_tool, mock_session)
     assert isinstance(lc_tool, BaseTool)
     assert lc_tool.name == "echo"
 
@@ -97,7 +97,7 @@ async def test_make_langchain_tool_calls_session() -> None:
 
 
 @pytest.mark.asyncio
-async def test_make_langchain_tool_raises_on_error() -> None:
+async def test_wrap_mcp_tool_raises_on_error() -> None:
     mock_session = MagicMock()
     error_result = MagicMock()
     error_result.isError = True
@@ -105,20 +105,20 @@ async def test_make_langchain_tool_raises_on_error() -> None:
     mock_session.call_tool = AsyncMock(return_value=error_result)
 
     mcp_tool = _make_mock_mcp_tool("broken_tool", "A broken tool", {})
-    lc_tool = _make_langchain_tool(mcp_tool, mock_session)
+    lc_tool = _wrap_mcp_tool(mcp_tool, mock_session)
 
     with pytest.raises(RuntimeError, match="broken_tool"):
         await lc_tool.ainvoke({})
 
 
-def test_make_langchain_tool_fallback_description() -> None:
+def test_wrap_mcp_tool_fallback_description() -> None:
     mock_session = MagicMock()
     mcp_tool = MagicMock()
     mcp_tool.name = "mystery_tool"
     mcp_tool.description = None
     mcp_tool.inputSchema = {}
 
-    lc_tool = _make_langchain_tool(mcp_tool, mock_session)
+    lc_tool = _wrap_mcp_tool(mcp_tool, mock_session)
     assert "mystery_tool" in lc_tool.description
 
 

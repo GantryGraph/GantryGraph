@@ -44,7 +44,7 @@ class _MockPerception:
 @pytest.mark.asyncio
 async def test_observe_node_no_perception() -> None:
     state = _base_state()
-    update = await observe_node(state, perception=None, event_cb=None)
+    update = await observe_node(state, perception=None, on_event=None)
     assert "messages" in update
     assert len(update["messages"]) == 1
     msg = update["messages"][0]
@@ -55,7 +55,7 @@ async def test_observe_node_no_perception() -> None:
 async def test_observe_node_with_screenshot() -> None:
     perception = _MockPerception(PerceptionResult(screenshot_b64="abc"))
     state = _base_state()
-    update = await observe_node(state, perception=perception, event_cb=None)  # type: ignore[arg-type]
+    update = await observe_node(state, perception=perception, on_event=None)  # type: ignore[arg-type]
     assert "last_observation" in update
     assert update["last_observation"]["screenshot_b64"] == "abc"
 
@@ -64,7 +64,7 @@ async def test_observe_node_with_screenshot() -> None:
 async def test_observe_node_emits_event() -> None:
     events: list[GantryEvent] = []
     state = _base_state()
-    await observe_node(state, perception=None, event_cb=lambda e: events.append(e))
+    await observe_node(state, perception=None, on_event=lambda e: events.append(e))
     assert len(events) == 1
     assert events[0].event_type == "observe"
 
@@ -74,7 +74,7 @@ async def test_observe_node_emits_event() -> None:
 @pytest.mark.asyncio
 async def test_think_node_appends_ai_message(mock_llm_done_immediately: Any) -> None:
     state = _base_state(messages=[HumanMessage(content="hello")])
-    update = await think_node(state, llm_with_tools=mock_llm_done_immediately, event_cb=None)
+    update = await think_node(state, bound_llm=mock_llm_done_immediately, on_event=None)
     assert "messages" in update
     assert isinstance(update["messages"][0], AIMessage)
 
@@ -85,8 +85,8 @@ async def test_think_node_emits_event(mock_llm_done_immediately: Any) -> None:
     state = _base_state(messages=[HumanMessage(content="hello")])
     await think_node(
         state,
-        llm_with_tools=mock_llm_done_immediately,
-        event_cb=lambda e: events.append(e),
+        bound_llm=mock_llm_done_immediately,
+        on_event=lambda e: events.append(e),
     )
     # No tool calls → LLM is done, event_type is "done"
     assert events[0].event_type == "done"
@@ -108,9 +108,9 @@ async def test_act_node_executes_tool() -> None:
     update = await act_node(
         state,
         tool_map={"echo": echo},
-        approval_cb=None,
+        approval_callback=None,
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     assert "messages" in update
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
@@ -127,9 +127,9 @@ async def test_act_node_unknown_tool_returns_error() -> None:
     update = await act_node(
         state,
         tool_map={},
-        approval_cb=None,
+        approval_callback=None,
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status == "error"
@@ -150,9 +150,9 @@ async def test_act_node_increments_step_count() -> None:
     update = await act_node(
         state,
         tool_map={"noop": noop},
-        approval_cb=None,
+        approval_callback=None,
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     assert update["step_count"] == 4
 
@@ -171,9 +171,9 @@ async def test_act_node_approval_denied() -> None:
     update = await act_node(
         state,
         tool_map={"dangerous": dangerous},
-        approval_cb=lambda name, args: False,  # always deny
+        approval_callback=lambda name, args: False,  # always deny
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status == "error"
@@ -194,9 +194,9 @@ async def test_act_node_approval_allowed() -> None:
     update = await act_node(
         state,
         tool_map={"safe": safe},
-        approval_cb=lambda name, args: True,
+        approval_callback=lambda name, args: True,
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status != "error"
@@ -218,9 +218,9 @@ async def test_act_node_guardrail_blocks_without_callback() -> None:
     update = await act_node(
         state,
         tool_map={"risky": risky},
-        approval_cb=None,  # no callback provided
+        approval_callback=None,  # no callback provided
         guardrail=guardrail,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status == "error"
@@ -241,9 +241,9 @@ async def test_act_node_tool_exception_is_caught() -> None:
     update = await act_node(
         state,
         tool_map={"broken": broken},
-        approval_cb=None,
+        approval_callback=None,
         guardrail=None,
-        event_cb=None,
+        on_event=None,
     )
     tool_msgs = [m for m in update["messages"] if isinstance(m, ToolMessage)]
     assert tool_msgs[0].status == "error"
@@ -255,7 +255,7 @@ async def test_act_node_no_tool_calls_returns_empty() -> None:
     ai_msg = AIMessage(content="Done.")
     state = _base_state(messages=[ai_msg])
     update = await act_node(
-        state, tool_map={}, approval_cb=None, guardrail=None, event_cb=None
+        state, tool_map={}, approval_callback=None, guardrail=None, on_event=None
     )
     assert update == {}
 
@@ -450,15 +450,21 @@ async def test_astream_events_terminates_on_engine_exception() -> None:
     # Stream terminates (no hang) and we reach this line
 
 
-# ── lvm module importability ──────────────────────────────────────────────────
+# ── vision module importability ───────────────────────────────────────────────
 
-def test_lvm_importable_from_gantrygraph() -> None:
+def test_vision_importable_from_gantrygraph() -> None:
     from gantrygraph import BaseVisionProvider, ClaudeVision  # noqa: F401
     assert ClaudeVision is not None
     assert BaseVisionProvider is not None
 
 
-def test_lvm_importable_from_gantrygraph_lvm() -> None:
+def test_vision_importable_from_gantrygraph_vision() -> None:
+    from gantrygraph.vision import BaseVisionProvider, ClaudeVision  # noqa: F401
+    assert ClaudeVision is not None
+
+
+def test_lvm_backward_compat_import() -> None:
+    """gantrygraph.lvm still works as a backward-compat alias."""
     from gantrygraph.lvm import BaseVisionProvider, ClaudeVision  # noqa: F401
     assert ClaudeVision is not None
 
@@ -467,10 +473,9 @@ def test_claude_vision_is_base_vision_provider() -> None:
     from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
     from langchain_core.messages import AIMessage
 
-    from gantrygraph.lvm import BaseVisionProvider, ClaudeVision
+    from gantrygraph.vision import BaseVisionProvider, ClaudeVision
 
     llm = FakeMessagesListChatModel(responses=[AIMessage(content="ok")])
-    # suppress the "not a claude model" warning for fake LLMs
     import warnings
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)

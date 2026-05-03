@@ -21,12 +21,12 @@ Load from YAML::
     config = GantryConfig.from_yaml("agent.yaml")
     agent = config.build(llm=my_llm)
 
-Load from environment variables (prefix ``CLAW_``)::
+Load from environment variables (prefix ``GANTRY_``)::
 
     # In shell:
-    #   export CLAW_WORKSPACE=/app
-    #   export CLAW_MEMORY=chroma
-    #   export CLAW_TELEMETRY_OTLP_ENDPOINT=http://localhost:4317
+    #   export GANTRY_WORKSPACE=/app
+    #   export GANTRY_MEMORY=chroma
+    #   export GANTRY_TELEMETRY_OTLP_ENDPOINT=http://localhost:4317
     config = GantryConfig.from_env()
 """
 from __future__ import annotations
@@ -129,19 +129,19 @@ class GantryConfig(BaseModel):
         from gantrygraph.security.policies import GuardrailPolicy
 
         tools: list[Any] = list(extra_tools or [])
-        perception_obj: BasePerception | None = None
-        memory_obj: BaseMemory | None = None
-        event_cb = on_event
+        perception: BasePerception | None = None
+        memory: BaseMemory | None = None
+        on_event_merged = on_event
         guardrail: GuardrailPolicy | None = None
 
         # ── tools ─────────────────────────────────────────────────────────────
         if self.workspace is not None:
             from gantrygraph.actions.filesystem import FileSystemTools
-            from gantrygraph.actions.shell import ShellTool
+            from gantrygraph.actions.shell import ShellTools
 
             tools = [
                 FileSystemTools(workspace=self.workspace),
-                ShellTool(
+                ShellTools(
                     workspace=self.workspace,
                     allowed_commands=self.shell_allowed_commands,
                     timeout=self.shell_timeout,
@@ -153,26 +153,26 @@ class GantryConfig(BaseModel):
         if self.perception == "desktop":
             from gantrygraph.perception.desktop import DesktopScreen
 
-            perception_obj = DesktopScreen(
+            perception = DesktopScreen(
                 max_resolution=self.desktop_max_resolution
             )
         elif self.perception == "web":
             from gantrygraph.perception.web import WebPage
 
-            perception_obj = WebPage(
+            perception = WebPage(
                 url=self.browser_url,
                 headless=self.browser_headless,
             )
 
         # ── memory ────────────────────────────────────────────────────────────
         if self.memory == "in_memory":
-            from gantrygraph.memory.in_memory import InMemoryVector
+            from gantrygraph.memory.in_memory import InMemoryStore
 
-            memory_obj = InMemoryVector()
+            memory = InMemoryStore()
         elif self.memory == "chroma":
             from gantrygraph.memory.chroma import ChromaMemory
 
-            memory_obj = ChromaMemory(
+            memory = ChromaMemory(
                 collection_name=self.memory_collection,
                 persist_directory=self.memory_persist_directory,
             )
@@ -196,9 +196,9 @@ class GantryConfig(BaseModel):
                     otel_cb(event)
                     await ensure_awaitable(_user_cb, event)
 
-                event_cb = _merged_cb
+                on_event_merged = _merged_cb
             else:
-                event_cb = otel_cb
+                on_event_merged = otel_cb
 
         # ── guardrail ─────────────────────────────────────────────────────────
         if self.guardrail_requires_approval:
@@ -218,13 +218,13 @@ class GantryConfig(BaseModel):
 
         return GantryEngine(
             llm=llm,
-            perception=perception_obj,
+            perception=perception,
             tools=tools,
             approval_callback=approval_callback,
-            on_event=event_cb,
+            on_event=on_event_merged,
             max_steps=self.max_steps,
             system_prompt=self.system_prompt,
-            memory=memory_obj,
+            memory=memory,
             guardrail=guardrail,
             enable_suspension=self.enable_suspension,
             budget=budget,
@@ -263,24 +263,24 @@ class GantryConfig(BaseModel):
         return cls(**data)
 
     @classmethod
-    def from_env(cls, prefix: str = "CLAW_") -> GantryConfig:
+    def from_env(cls, prefix: str = "GANTRY_") -> GantryConfig:
         """Load config from environment variables.
 
         Each field maps to ``{prefix}{FIELD_NAME_UPPERCASE}``.
 
         Example::
 
-            CLAW_MAX_STEPS=30
-            CLAW_WORKSPACE=/app
-            CLAW_MEMORY=chroma
-            CLAW_MEMORY_PERSIST_DIRECTORY=/data/memory
-            CLAW_TELEMETRY_OTLP_ENDPOINT=http://collector:4317
-            CLAW_ENABLE_SUSPENSION=true
-            CLAW_GUARDRAIL_REQUIRES_APPROVAL=shell_run,file_delete
-            CLAW_DESKTOP_MAX_RESOLUTION=1280,720
+            GANTRY_MAX_STEPS=30
+            GANTRY_WORKSPACE=/app
+            GANTRY_MEMORY=chroma
+            GANTRY_MEMORY_PERSIST_DIRECTORY=/data/memory
+            GANTRY_TELEMETRY_OTLP_ENDPOINT=http://collector:4317
+            GANTRY_ENABLE_SUSPENSION=true
+            GANTRY_GUARDRAIL_REQUIRES_APPROVAL=shell_run,file_delete
+            GANTRY_DESKTOP_MAX_RESOLUTION=1280,720
         """
         data: dict[str, Any] = {}
-        p = prefix.upper()
+        env_prefix = prefix.upper()
 
         _int_fields = {"max_steps"}
         _float_fields = {"shell_timeout", "max_wall_seconds"}
@@ -290,7 +290,7 @@ class GantryConfig(BaseModel):
         _tuple_int2_fields = {"desktop_max_resolution"}
 
         for field_name in cls.model_fields:
-            env_key = f"{p}{field_name.upper()}"
+            env_key = f"{env_prefix}{field_name.upper()}"
             raw = os.environ.get(env_key)
             if raw is None:
                 continue

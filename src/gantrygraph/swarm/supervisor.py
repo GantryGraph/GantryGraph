@@ -10,7 +10,8 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from gantrygraph.swarm.worker import ClawWorker, WorkerResult, WorkerSpec
+from gantrygraph._utils import _run_sync
+from gantrygraph.swarm.worker import AgentWorker, WorkerResult, WorkerSpec
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class GantrySupervisor:
 
     Worker agents run concurrently via ``asyncio.gather``.
 
-    **Homogeneous workers (original API — all workers share the same tools):**
+    **Homogeneous workers (all workers share the same tools):**
 
     .. code-block:: python
 
@@ -40,15 +41,15 @@ class GantrySupervisor:
             worker_factory=lambda: GantryEngine(llm=llm, tools=[...]),
             max_workers=4,
         )
-        result = await supervisor.run("Analyse these 10 documents and summarise findings")
+        result = await supervisor.arun("Analyse these 10 documents and summarise findings")
 
-    **Heterogeneous workers (new API — each worker has its own tools):**
+    **Heterogeneous workers (each worker has its own tools):**
 
     .. code-block:: python
 
         from gantrygraph.swarm import GantrySupervisor, WorkerSpec
         from gantrygraph import GantryEngine
-        from gantrygraph.actions import ShellTool, FileSystemTools
+        from gantrygraph.actions import ShellTools, FileSystemTools
         from langchain_anthropic import ChatAnthropic
 
         llm = ChatAnthropic(model="claude-sonnet-4-6")
@@ -57,7 +58,7 @@ class GantrySupervisor:
             workers=[
                 WorkerSpec(
                     name="shell_expert",
-                    engine=GantryEngine(llm=llm, tools=[ShellTool(workspace="/tmp")]),
+                    engine=GantryEngine(llm=llm, tools=[ShellTools(workspace="/tmp")]),
                     description="Runs shell commands and explores the filesystem.",
                 ),
                 WorkerSpec(
@@ -67,7 +68,7 @@ class GantrySupervisor:
                 ),
             ],
         )
-        result = await supervisor.run(
+        result = await supervisor.arun(
             "Find all .log files in /tmp and summarise their contents."
         )
 
@@ -90,13 +91,17 @@ class GantrySupervisor:
         if worker_factory is not None and workers is not None:
             raise ValueError("Provide worker_factory= OR workers=, not both.")
         self._llm = llm
-        self._factory = worker_factory
+        self._worker_factory = worker_factory
         self._workers = workers or []
         self._max_workers = max_workers
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    async def run(self, task: str) -> str:
+    def run(self, task: str) -> str:
+        """Synchronous entry point.  Blocks until the task completes."""
+        return _run_sync(self.arun(task))
+
+    async def arun(self, task: str) -> str:
         """Decompose *task*, run workers concurrently, and synthesise results."""
         logger.info("Supervisor decomposing task: %s", task[:80])
         if self._workers:
@@ -107,11 +112,17 @@ class GantrySupervisor:
 
     async def _run_with_factory(self, task: str) -> str:
         subtasks = await self._decompose(task)
-        batch = subtasks[: self._max_workers]
-        logger.info("Spawning %d factory workers for %d subtasks", len(batch), len(subtasks))
-        workers = [ClawWorker(i, self._factory) for i in range(len(batch))]
+        active_subtasks = subtasks[: self._max_workers]
+        logger.info(
+            "Spawning %d factory workers for %d subtasks",
+            len(active_subtasks), len(subtasks),
+        )
+        workers = [
+            AgentWorker(worker_name=str(i), engine_factory=self._worker_factory)
+            for i in range(len(active_subtasks))
+        ]
         results: list[WorkerResult] = await asyncio.gather(
-            *[w.run(t) for w, t in zip(workers, batch, strict=False)],
+            *[w.run(t) for w, t in zip(workers, active_subtasks, strict=False)],
             return_exceptions=False,
         )
         return await self._synthesize(task, results)
@@ -126,23 +137,21 @@ class GantrySupervisor:
         )
         results: list[WorkerResult] = await asyncio.gather(
             *[
-                self._run_spec(spec, subtask, idx)
-                for idx, (subtask, spec) in enumerate(assignments)
+                self._run_spec(spec, subtask)
+                for subtask, spec in assignments
             ],
             return_exceptions=False,
         )
         return await self._synthesize(task, results)
 
-    async def _run_spec(self, spec: WorkerSpec, task: str, idx: int) -> WorkerResult:
+    async def _run_spec(self, spec: WorkerSpec, task: str) -> WorkerResult:
         logger.info("Worker [%s] starting subtask: %s", spec.name, task[:60])
         try:
             answer = await spec.engine.arun(task)
-            return WorkerResult(worker_id=idx, task=task, answer=answer,
-                                metadata={"worker_name": spec.name})
+            return WorkerResult(worker_name=spec.name, task=task, result=answer)
         except Exception as exc:
             logger.warning("Worker [%s] failed: %s", spec.name, exc)
-            return WorkerResult(worker_id=idx, task=task, error=str(exc),
-                                metadata={"worker_name": spec.name})
+            return WorkerResult(worker_name=spec.name, task=task, error=str(exc))
 
     # ── LLM helpers ───────────────────────────────────────────────────────────
 
@@ -203,12 +212,11 @@ class GantrySupervisor:
             line = line.strip()
             if not line:
                 continue
-            m = re.match(r"^\[([^\]]+)\]\s*(.*)", line)
-            if m:
-                name, subtask = m.group(1).strip(), m.group(2).strip()
+            match_result = re.match(r"^\[([^\]]+)\]\s*(.*)", line)
+            if match_result:
+                name, subtask = match_result.group(1).strip(), match_result.group(2).strip()
                 spec = worker_map.get(name, fallback)
             else:
-                # No bracket prefix — assign to fallback worker
                 subtask = line.lstrip("0123456789.)- ").strip()
                 spec = fallback
             if subtask:
@@ -220,11 +228,10 @@ class GantrySupervisor:
         """Ask the LLM to merge worker results into a final answer."""
         summaries: list[str] = []
         for r in results:
-            worker_label = r.metadata.get("worker_name", str(r.worker_id))
             if r.success:
-                summaries.append(f"Worker {worker_label} ({r.task[:50]}):\n{r.answer}")
+                summaries.append(f"Worker {r.worker_name} ({r.task[:50]}):\n{r.result}")
             else:
-                summaries.append(f"Worker {worker_label} failed: {r.error}")
+                summaries.append(f"Worker {r.worker_name} failed: {r.error}")
 
         combined = "\n\n---\n\n".join(summaries)
         prompt = (

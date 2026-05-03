@@ -23,7 +23,7 @@ def test_import_claw_never_fails() -> None:
 
     assert gantrygraph.GantryEngine is not None
     assert gantrygraph.GantryConfig is not None
-    assert gantrygraph.InMemoryVector is not None
+    assert gantrygraph.InMemoryStore is not None
 
 
 def test_import_claw_actions_never_fails() -> None:
@@ -44,8 +44,8 @@ def test_import_claw_cloud_never_fails() -> None:
 
 def test_import_gantry_memory_never_fails() -> None:
     import gantrygraph.memory  # noqa: F401
-    from gantrygraph.memory import InMemoryVector
-    assert InMemoryVector is not None
+    from gantrygraph.memory import InMemoryStore
+    assert InMemoryStore is not None
 
 
 def test_import_claw_telemetry_never_fails() -> None:
@@ -54,8 +54,8 @@ def test_import_claw_telemetry_never_fails() -> None:
 
 def test_import_claw_presets_never_fails() -> None:
     import gantrygraph.presets  # noqa: F401
-    from gantrygraph.presets import qa_agent
-    assert callable(qa_agent)
+    from gantrygraph.presets import code_agent
+    assert callable(code_agent)
 
 
 def test_desktop_agent_raises_without_extra() -> None:
@@ -102,55 +102,55 @@ def test_browser_agent_raises_without_extra() -> None:
         importlib.reload(bmod)
 
 
-# ── qa_agent ──────────────────────────────────────────────────────────────────
+# ── code_agent ──────────────────────────────────────────────────────────────────
 
-def test_qa_agent_creates_engine(tmp_path: Any) -> None:
+def test_code_agent_creates_engine(tmp_path: Any) -> None:
     from gantrygraph import GantryEngine
-    from gantrygraph.presets import qa_agent
+    from gantrygraph.presets import code_agent
 
-    agent = qa_agent(llm=_done_llm(), workspace=str(tmp_path))
+    agent = code_agent(llm=_done_llm(), workspace=str(tmp_path))
     assert isinstance(agent, GantryEngine)
 
 
-def test_qa_agent_has_filesystem_and_shell_tools(tmp_path: Any) -> None:
-    from gantrygraph.presets import qa_agent
+def test_code_agent_has_filesystem_and_shell_tools(tmp_path: Any) -> None:
+    from gantrygraph.presets import code_agent
 
-    agent = qa_agent(llm=_done_llm(), workspace=str(tmp_path))
+    agent = code_agent(llm=_done_llm(), workspace=str(tmp_path))
     names = {t.name for t in agent._collect_tools()}
     assert "file_read" in names
     assert "shell_run" in names
 
 
-def test_qa_agent_attaches_memory(tmp_path: Any) -> None:
-    from gantrygraph.memory import InMemoryVector
-    from gantrygraph.presets import qa_agent
+def test_code_agent_attaches_memory(tmp_path: Any) -> None:
+    from gantrygraph.memory import InMemoryStore
+    from gantrygraph.presets import code_agent
 
-    agent = qa_agent(llm=_done_llm(), workspace=str(tmp_path), with_memory=True)
-    assert isinstance(agent._memory, InMemoryVector)
+    agent = code_agent(llm=_done_llm(), workspace=str(tmp_path), with_memory=True)
+    assert isinstance(agent._memory, InMemoryStore)
 
 
-def test_qa_agent_without_memory(tmp_path: Any) -> None:
-    from gantrygraph.presets import qa_agent
+def test_code_agent_without_memory(tmp_path: Any) -> None:
+    from gantrygraph.presets import code_agent
 
-    agent = qa_agent(llm=_done_llm(), workspace=str(tmp_path), with_memory=False)
+    agent = code_agent(llm=_done_llm(), workspace=str(tmp_path), with_memory=False)
     assert agent._memory is None
 
 
 @pytest.mark.asyncio
-async def test_qa_agent_runs_to_completion(tmp_path: Any) -> None:
-    from gantrygraph.presets import qa_agent
+async def test_code_agent_runs_to_completion(tmp_path: Any) -> None:
+    from gantrygraph.presets import code_agent
 
-    agent = qa_agent(llm=_done_llm(), workspace=str(tmp_path), max_steps=5)
+    agent = code_agent(llm=_done_llm(), workspace=str(tmp_path), max_steps=5)
     result = await agent.arun("Count the files in the workspace")
     assert isinstance(result, str)
     assert len(result) > 0
 
 
-def test_qa_agent_forwards_kwargs(tmp_path: Any) -> None:
-    from gantrygraph.presets import qa_agent
+def test_code_agent_forwards_kwargs(tmp_path: Any) -> None:
+    from gantrygraph.presets import code_agent
 
     events: list = []
-    agent = qa_agent(
+    agent = code_agent(
         llm=_done_llm(),
         workspace=str(tmp_path),
         on_event=lambda e: events.append(e),
@@ -158,20 +158,20 @@ def test_qa_agent_forwards_kwargs(tmp_path: Any) -> None:
     assert agent._event_cb is not None
 
 
-# ── cloud_agent ───────────────────────────────────────────────────────────────
+# ── api_agent ───────────────────────────────────────────────────────────────
 
-def test_cloud_agent_creates_engine(tmp_path: Any) -> None:
+def test_api_agent_creates_engine(tmp_path: Any) -> None:
     from gantrygraph import GantryEngine
-    from gantrygraph.presets import cloud_agent
+    from gantrygraph.presets import api_agent
 
-    agent = cloud_agent(llm=_done_llm(), workspace=str(tmp_path))
+    agent = api_agent(llm=_done_llm(), workspace=str(tmp_path))
     assert isinstance(agent, GantryEngine)
 
 
-def test_cloud_agent_with_suspension_sets_checkpointer(tmp_path: Any) -> None:
-    from gantrygraph.presets import cloud_agent
+def test_api_agent_with_suspension_sets_checkpointer(tmp_path: Any) -> None:
+    from gantrygraph.presets import api_agent
 
-    agent = cloud_agent(
+    agent = api_agent(
         llm=_done_llm(), workspace=str(tmp_path), enable_suspension=True
     )
     assert agent._checkpointer is not None
@@ -228,11 +228,11 @@ def test_config_build_with_workspace(tmp_path: Any) -> None:
 
 def test_config_build_with_in_memory(tmp_path: Any) -> None:
     from gantrygraph import GantryConfig
-    from gantrygraph.memory import InMemoryVector
+    from gantrygraph.memory import InMemoryStore
 
     cfg = GantryConfig(workspace=str(tmp_path), memory="in_memory")
     agent = cfg.build(llm=_done_llm())
-    assert isinstance(agent._memory, InMemoryVector)
+    assert isinstance(agent._memory, InMemoryStore)
 
 
 def test_config_build_with_guardrail(tmp_path: Any) -> None:
@@ -258,9 +258,9 @@ def test_config_build_with_suspension(tmp_path: Any) -> None:
 
 def test_config_build_extra_tools(tmp_path: Any) -> None:
     from gantrygraph import GantryConfig
-    from gantrygraph.actions.shell import ShellTool
+    from gantrygraph.actions.shell import ShellTools
 
-    extra = ShellTool(workspace=str(tmp_path))
+    extra = ShellTools(workspace=str(tmp_path))
     cfg = GantryConfig()
     agent = cfg.build(llm=_done_llm(), extra_tools=[extra])
     # extra tools are appended
@@ -271,11 +271,11 @@ def test_config_from_env_reads_variables(tmp_path: Any) -> None:
     from gantrygraph import GantryConfig
 
     env = {
-        "CLAW_MAX_STEPS": "7",
-        "CLAW_WORKSPACE": str(tmp_path),
-        "CLAW_MEMORY": "in_memory",
-        "CLAW_ENABLE_SUSPENSION": "true",
-        "CLAW_GUARDRAIL_REQUIRES_APPROVAL": "shell_run, file_delete",
+        "GANTRY_MAX_STEPS": "7",
+        "GANTRY_WORKSPACE": str(tmp_path),
+        "GANTRY_MEMORY": "in_memory",
+        "GANTRY_ENABLE_SUSPENSION": "true",
+        "GANTRY_GUARDRAIL_REQUIRES_APPROVAL": "shell_run, file_delete",
     }
     old = {k: os.environ.pop(k, None) for k in env}
     os.environ.update(env)
@@ -349,11 +349,11 @@ def test_config_build_no_budget_when_no_wall_seconds() -> None:
 def test_config_from_env_desktop_max_resolution() -> None:
     from gantrygraph import GantryConfig
 
-    os.environ["CLAW_DESKTOP_MAX_RESOLUTION"] = "800,600"
+    os.environ["GANTRY_DESKTOP_MAX_RESOLUTION"] = "800,600"
     try:
         cfg = GantryConfig.from_env()
     finally:
-        del os.environ["CLAW_DESKTOP_MAX_RESOLUTION"]
+        del os.environ["GANTRY_DESKTOP_MAX_RESOLUTION"]
 
     assert cfg.desktop_max_resolution == (800, 600)
 
@@ -361,11 +361,11 @@ def test_config_from_env_desktop_max_resolution() -> None:
 def test_config_from_env_desktop_max_resolution_space_separated() -> None:
     from gantrygraph import GantryConfig
 
-    os.environ["CLAW_DESKTOP_MAX_RESOLUTION"] = "1920 1080"
+    os.environ["GANTRY_DESKTOP_MAX_RESOLUTION"] = "1920 1080"
     try:
         cfg = GantryConfig.from_env()
     finally:
-        del os.environ["CLAW_DESKTOP_MAX_RESOLUTION"]
+        del os.environ["GANTRY_DESKTOP_MAX_RESOLUTION"]
 
     assert cfg.desktop_max_resolution == (1920, 1080)
 
@@ -373,11 +373,11 @@ def test_config_from_env_desktop_max_resolution_space_separated() -> None:
 def test_config_from_env_max_wall_seconds() -> None:
     from gantrygraph import GantryConfig
 
-    os.environ["CLAW_MAX_WALL_SECONDS"] = "120.5"
+    os.environ["GANTRY_MAX_WALL_SECONDS"] = "120.5"
     try:
         cfg = GantryConfig.from_env()
     finally:
-        del os.environ["CLAW_MAX_WALL_SECONDS"]
+        del os.environ["GANTRY_MAX_WALL_SECONDS"]
 
     assert cfg.max_wall_seconds == 120.5
 

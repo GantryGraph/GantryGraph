@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from gantrygraph.actions.filesystem import FileSystemTools
-from gantrygraph.actions.shell import ShellTool
+from gantrygraph.actions.shell import ShellTools
 
 # ── FileSystemTools ──────────────────────────────────────────────────────────
 
@@ -83,45 +83,45 @@ async def test_file_write_path_traversal_blocked(tmp_workspace: Path) -> None:
         await tools["file_write"].ainvoke({"path": "../evil.txt", "content": "bad"})
 
 
-# ── ShellTool ────────────────────────────────────────────────────────────────
+# ── ShellTools ────────────────────────────────────────────────────────────────
 
 def test_shell_tool_returns_one_tool() -> None:
-    tools = ShellTool().get_tools()
+    tools = ShellTools().get_tools()
     assert len(tools) == 1
     assert tools[0].name == "shell_run"
 
 
 @pytest.mark.asyncio
 async def test_shell_tool_echo() -> None:
-    tool = ShellTool().get_tools()[0]
+    tool = ShellTools().get_tools()[0]
     result = await tool.ainvoke({"command": "echo hello"})
     assert "hello" in result
 
 
 @pytest.mark.asyncio
 async def test_shell_tool_allowlist_blocks_command() -> None:
-    tool = ShellTool(allowed_commands=["ls"]).get_tools()[0]
+    tool = ShellTools(allowed_commands=["ls"]).get_tools()[0]
     result = await tool.ainvoke({"command": "echo not_allowed"})
     assert "not in the allowed list" in result
 
 
 @pytest.mark.asyncio
 async def test_shell_tool_allowlist_permits_command() -> None:
-    tool = ShellTool(allowed_commands=["echo"]).get_tools()[0]
+    tool = ShellTools(allowed_commands=["echo"]).get_tools()[0]
     result = await tool.ainvoke({"command": "echo permitted"})
     assert "permitted" in result
 
 
 @pytest.mark.asyncio
 async def test_shell_tool_nonzero_exit_includes_code() -> None:
-    tool = ShellTool().get_tools()[0]
+    tool = ShellTools().get_tools()[0]
     result = await tool.ainvoke({"command": "sh -c 'exit 42'"})
     assert "42" in result
 
 
 @pytest.mark.asyncio
 async def test_shell_tool_timeout() -> None:
-    tool = ShellTool(timeout=0.1).get_tools()[0]
+    tool = ShellTools(timeout=0.1).get_tools()[0]
     result = await tool.ainvoke({"command": "sleep 5"})
     assert "timed out" in result
 
@@ -129,14 +129,14 @@ async def test_shell_tool_timeout() -> None:
 @pytest.mark.asyncio
 async def test_shell_tool_workspace_cwd(tmp_path: Path) -> None:
     (tmp_path / "marker.txt").write_text("found", encoding="utf-8")
-    tool = ShellTool(workspace=tmp_path).get_tools()[0]
+    tool = ShellTools(workspace=tmp_path).get_tools()[0]
     result = await tool.ainvoke({"command": "ls"})
     assert "marker.txt" in result
 
 
 @pytest.mark.asyncio
 async def test_shell_tool_empty_command() -> None:
-    tool = ShellTool().get_tools()[0]
+    tool = ShellTools().get_tools()[0]
     result = await tool.ainvoke({"command": ""})
     assert "empty" in result.lower()
 
