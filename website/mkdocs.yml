@@ -1,0 +1,114 @@
+site_name: GantryGraph
+site_url: https://gantrygraph.com
+site_description: >-
+  Enterprise-ready Python SDK for building autonomous AI agents.
+  Visual computer use, MCP tools, and multi-agent swarms — backed by LangGraph.
+  Formerly openclaw.
+site_author: GantryGraph Contributors
+repo_url: https://github.com/GantryGraph/GantryGraph
+repo_name: gantrygraph
+edit_uri: edit/main/website/docs/
+copyright: Copyright &copy; 2025 GantryGraph Contributors — MIT License
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - navigation.instant.progress
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Concepts:
+      - Engine: concepts/engine.md
+      - Tools & Actions: concepts/tools.md
+      - Perception: concepts/perception.md
+  - How-to Guides:
+      - Desktop Agent: how-to/desktop-agent.md
+      - Browser Agent: how-to/browser-agent.md
+      - MCP Integration: how-to/mcp.md
+      - Swarm / Multi-Agent: how-to/swarm.md
+      - Cloud Deploy: how-to/cloud-deploy.md
+  - API Reference: api-reference.md
+
+plugins:
+  - search:
+      lang: en
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [../src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            docstring_style: google
+            merge_init_into_class: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/GantryGraph/GantryGraph
+      name: GitHub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/gantrygraph/
+      name: PyPI
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX

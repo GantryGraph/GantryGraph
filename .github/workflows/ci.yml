@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff + mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -e ".[all,dev]"
+
+      - name: ruff check
+        run: ruff check src/ tests/
+
+      - name: ruff format (check only)
+        run: ruff format --check src/ tests/
+
+      - name: mypy
+        run: mypy src/gantrygraph --strict
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install all extras + dev dependencies
+        run: pip install -e ".[all,dev]"
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -v --tb=short
+        env:
+          DISPLAY: ":99"  # headless display for mss on Linux
+
+  # Smoke test: does `import claw` work from a clean install?
+  import-guard:
+    name: Import guard (no optional extras)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install core only
+        run: pip install -e "."
+
+      - name: Verify clean import
+        run: |
+          python -c "
+          import gantrygraph
+          assert gantrygraph.GantryEngine is not None
+          assert gantrygraph.GantryConfig is not None
+          assert gantrygraph.gantry_tool is not None
+          print('OK — core import clean')
+          "
