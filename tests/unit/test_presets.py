@@ -84,7 +84,10 @@ def test_desktop_agent_raises_without_extra() -> None:
             sys.modules["pyautogui"] = pag_backup
         else:
             sys.modules.pop("pyautogui", None)
-        importlib.reload(mk)
+        try:
+            importlib.reload(mk)
+        except Exception:
+            pass
 
 
 def test_browser_agent_raises_without_extra() -> None:

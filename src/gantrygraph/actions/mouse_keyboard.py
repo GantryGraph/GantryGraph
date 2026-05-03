@@ -19,7 +19,7 @@ try:
     import pyautogui as _pag  # type: ignore[import-untyped]  # noqa: F401
 
     _HAS_PYAUTOGUI = True
-except ImportError:
+except Exception:  # pyautogui raises KeyError on headless Linux (missing DISPLAY)
     _HAS_PYAUTOGUI = False
 
 _INSTALL_MSG = "MouseKeyboardTools requires the [desktop] extra: pip install 'gantrygraph[desktop]'"
