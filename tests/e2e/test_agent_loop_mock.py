@@ -319,8 +319,7 @@ async def test_engine_respects_max_steps_in_real_scenario(sandbox: Path) -> None
                     "name": "shell_run",
                     "args": {
                         "command": (
-                            f"{_PY} -m pytest test_utils.py -q --tb=no"
-                            f" -k test_safe_divide_{i}"
+                            f"{_PY} -m pytest test_utils.py -q --tb=no -k test_safe_divide_{i}"
                         ),
                     },
                     "id": f"c{i}",
