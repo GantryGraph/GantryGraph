@@ -14,7 +14,7 @@ def _trigrams(text: str) -> frozenset[str]:
     return frozenset(text[i : i + 3] for i in range(len(text) - 2))
 
 
-class InMemoryVector(BaseMemory):
+class InMemoryStore(BaseMemory):
     """Ephemeral in-process memory backed by trigram Jaccard similarity.
 
     All entries are held in RAM and lost when the process exits.
@@ -43,3 +43,6 @@ class InMemoryVector(BaseMemory):
 
     def __len__(self) -> int:
         return len(self._entries)
+
+
+InMemoryVector = InMemoryStore  # backward compat alias

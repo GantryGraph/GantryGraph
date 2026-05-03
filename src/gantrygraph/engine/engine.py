@@ -235,12 +235,12 @@ class GantryEngine:
 
         original_cb = self._event_cb
 
-        async def _collecting_cb(event: GantryEvent) -> None:
+        async def _queuing_cb(event: GantryEvent) -> None:
             if original_cb:
                 await _run_sync_safe(original_cb, event)
             await queue.put(event)
 
-        self._event_cb = _collecting_cb
+        self._event_cb = _queuing_cb
         self._compiled = None  # force rebuild with new callback
 
         async def _run() -> None:
@@ -305,12 +305,12 @@ class GantryEngine:
                 return {}
 
             graph = StateGraph(GantryState)
-            graph.add_node("observe",  partial(observe_node, perception=None, event_cb=None))
-            graph.add_node("think",    partial(think_node,   llm_with_tools=my_llm, event_cb=None))
+            graph.add_node("observe",  partial(observe_node, perception=None, on_event=None))
+            graph.add_node("think",    partial(think_node,   bound_llm=my_llm, on_event=None))
             graph.add_node("pre_act",  my_pre_act_hook)       # custom hook
             graph.add_node("act",      partial(act_node, tool_map=tool_map,
-                                               approval_cb=None, guardrail=None,
-                                               event_cb=None, use_interrupt=False))
+                                               approval_callback=None, guardrail=None,
+                                               on_event=None, use_interrupt=False))
             graph.add_node("review",   review_node)
             graph.add_edge(START,      "observe")
             graph.add_edge("observe",  "think")
@@ -341,21 +341,21 @@ class GantryEngine:
         tool_map = {t.name: t for t in tool_list}
         if tool_list:
             try:
-                llm_with_tools: BaseChatModel = self._llm.bind_tools(tool_list)  # type: ignore[assignment]
+                bound_llm: BaseChatModel = self._llm.bind_tools(tool_list)  # type: ignore[assignment]
             except NotImplementedError:
-                llm_with_tools = self._llm
+                bound_llm = self._llm
         else:
-            llm_with_tools = self._llm
+            bound_llm = self._llm
 
         from gantrygraph.engine.graph import build_graph
 
         self._compiled = build_graph(
             perception=self._perception,
-            llm_with_tools=llm_with_tools,
+            bound_llm=bound_llm,
             tool_map=tool_map,
-            approval_cb=self._approval_cb,
+            approval_callback=self._approval_cb,
             guardrail=self._guardrail,
-            event_cb=self._event_cb,
+            on_event=self._event_cb,
             max_steps=self._max_steps,
             memory=self._memory,
             use_interrupt=self._use_interrupt,
@@ -369,33 +369,33 @@ class GantryEngine:
         from gantrygraph.core.base_action import BaseAction
         from gantrygraph.core.base_mcp import BaseMCPConnector
 
-        flat: list[BaseTool] = []
+        tools: list[BaseTool] = []
 
-        # workspace_policy auto-creates locked FileSystemTools + ShellTool
+        # workspace_policy auto-creates locked FileSystemTools + ShellTools
         if self._workspace_policy is not None:
             from gantrygraph.actions.filesystem import FileSystemTools
-            from gantrygraph.actions.shell import ShellTool
+            from gantrygraph.actions.shell import ShellTools
 
-            flat.extend(
+            tools.extend(
                 FileSystemTools(workspace=self._workspace_policy.workspace_path).get_tools()
             )
-            flat.extend(
-                ShellTool(workspace=self._workspace_policy.workspace_path).get_tools()
+            tools.extend(
+                ShellTools(workspace=self._workspace_policy.workspace_path).get_tools()
             )
 
         for item in self._raw_tools:
             if isinstance(item, BaseMCPConnector):
-                flat.extend(item.get_tools())
+                tools.extend(item.get_tools())
             elif isinstance(item, BaseAction):
-                flat.extend(item.get_tools())
+                tools.extend(item.get_tools())
             elif isinstance(item, BaseTool):
-                flat.append(item)
+                tools.append(item)
             else:
                 raise TypeError(
                     f"Unexpected tool type {type(item).__name__}. "
                     "Expected BaseAction, BaseMCPConnector, or BaseTool."
                 )
-        return flat
+        return tools
 
     def _initial_state(self, task: str) -> dict[str, Any]:
         from langchain_core.messages import SystemMessage

@@ -249,9 +249,9 @@ async def _execute_job(
         result = await engine.arun(task)
         _jobs[job_id].status = "completed"
         _jobs[job_id].result = result
-    except AgentSuspended as sus:
+    except AgentSuspended as suspended_exc:
         _jobs[job_id].status = "suspended"
-        _jobs[job_id].thread_id = sus.thread_id
+        _jobs[job_id].thread_id = suspended_exc.thread_id
         _suspended_engines[job_id] = engine  # dedicated dict — no type abuse
     except Exception as exc:
         _jobs[job_id].status = "failed"

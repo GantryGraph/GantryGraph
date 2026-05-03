@@ -1,4 +1,4 @@
-"""ClawWorker — a single agent worker within a swarm."""
+"""AgentWorker — a single agent worker within a swarm."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,18 +7,18 @@ from typing import Any
 
 @dataclass
 class WorkerResult:
-    """Outcome from a single ClawWorker execution."""
+    """Outcome from a single AgentWorker execution."""
 
-    worker_id: int
+    worker_name: str
     task: str
-    answer: str | None = None
+    result: str | None = None
     error: str | None = None
     steps_taken: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def success(self) -> bool:
-        return self.error is None and self.answer is not None
+        return self.error is None and self.result is not None
 
 
 @dataclass
@@ -41,7 +41,7 @@ class WorkerSpec:
     Example::
 
         from gantrygraph import GantryEngine
-        from gantrygraph.actions import ShellTool, FileSystemTools
+        from gantrygraph.actions import ShellTools, FileSystemTools
         from gantrygraph.swarm import GantrySupervisor, WorkerSpec
         from langchain_anthropic import ChatAnthropic
 
@@ -52,7 +52,7 @@ class WorkerSpec:
             workers=[
                 WorkerSpec(
                     name="shell_expert",
-                    engine=GantryEngine(llm=llm, tools=[ShellTool(workspace="/tmp")]),
+                    engine=GantryEngine(llm=llm, tools=[ShellTools(workspace="/tmp")]),
                     description="Runs shell commands, explores the filesystem, executes scripts.",
                 ),
                 WorkerSpec(
@@ -62,7 +62,7 @@ class WorkerSpec:
                 ),
             ],
         )
-        result = await supervisor.run(
+        result = await supervisor.arun(
             "Explore /tmp, find all .log files, then read their first 10 lines."
         )
     """
@@ -72,7 +72,7 @@ class WorkerSpec:
     description: str = ""
 
 
-class ClawWorker:
+class AgentWorker:
     """Wraps a ``GantryEngine`` for use inside a ``GantrySupervisor``.
 
     Workers are stateless — each ``run()`` call creates a fresh engine
@@ -80,26 +80,29 @@ class ClawWorker:
 
     Example (usually not used directly — see ``GantrySupervisor``)::
 
-        worker = ClawWorker(worker_id=0, engine_factory=lambda: GantryEngine(...))
+        worker = AgentWorker(worker_name="worker_0", engine_factory=lambda: GantryEngine(...))
         result = await worker.run("Summarise page 1")
     """
 
     def __init__(
         self,
-        worker_id: int,
+        worker_name: str,
         engine_factory: Any,  # Callable[[], GantryEngine]
     ) -> None:
-        self._id = worker_id
-        self._factory = engine_factory
+        self._name = worker_name
+        self._engine_factory = engine_factory
 
     async def run(self, task: str) -> WorkerResult:
-        engine = self._factory()
+        engine = self._engine_factory()
         try:
             answer = await engine.arun(task)
-            return WorkerResult(worker_id=self._id, task=task, answer=answer)
+            return WorkerResult(worker_name=self._name, task=task, result=answer)
         except Exception as exc:
             return WorkerResult(
-                worker_id=self._id,
+                worker_name=self._name,
                 task=task,
                 error=str(exc),
             )
+
+
+ClawWorker = AgentWorker  # backward compat alias

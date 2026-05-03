@@ -6,10 +6,10 @@ are ever touched.
 
 Quick start::
 
-    from gantrygraph.presets import qa_agent
+    from gantrygraph.presets import code_agent
     from langchain_anthropic import ChatAnthropic
 
-    agent = qa_agent(
+    agent = code_agent(
         llm=ChatAnthropic(model="claude-sonnet-4-6"),
         workspace="/my/project",
     )
@@ -17,19 +17,19 @@ Quick start::
 
 Available presets:
 
-+------------------+------------------------------+------------------------+
-| Preset           | Use case                     | Required extras        |
-+==================+==============================+========================+
-| ``qa_agent``     | code review, test-fixing     | none (core only)       |
-+------------------+------------------------------+------------------------+
-| ``desktop_agent``| screenshot + mouse/keyboard  | ``[desktop]``          |
-+------------------+------------------------------+------------------------+
-| ``browser_agent``| web scraping, form filling   | ``[browser]``          |
-+------------------+------------------------------+------------------------+
-| ``mcp_agent``    | MCP tool servers             | none (core only)       |
-+------------------+------------------------------+------------------------+
-| ``cloud_agent``  | REST + SSE cloud deployment  | ``[cloud]``            |
-+------------------+------------------------------+------------------------+
++-------------------+------------------------------+------------------------+
+| Preset            | Use case                     | Required extras        |
++===================+==============================+========================+
+| ``code_agent``    | code review, test-fixing     | none (core only)       |
++-------------------+------------------------------+------------------------+
+| ``desktop_agent`` | screenshot + mouse/keyboard  | ``[desktop]``          |
++-------------------+------------------------------+------------------------+
+| ``browser_agent`` | web scraping, form filling   | ``[browser]``          |
++-------------------+------------------------------+------------------------+
+| ``mcp_agent``     | MCP tool servers             | none (core only)       |
++-------------------+------------------------------+------------------------+
+| ``api_agent``     | REST + SSE cloud deployment  | ``[cloud]``            |
++-------------------+------------------------------+------------------------+
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from gantrygraph.engine.engine import GantryEngine
 
 
-def qa_agent(
+def code_agent(
     llm: Any,
     workspace: str = ".",
     *,
@@ -49,9 +49,9 @@ def qa_agent(
     max_steps: int = 30,
     **kwargs: Any,
 ) -> GantryEngine:
-    """Agent for QA, debugging, and code-fixing tasks.
+    """Agent for code review, debugging, and test-fixing tasks.
 
-    Bundles ``FileSystemTools`` + ``ShellTool`` + ``InMemoryVector`` memory.
+    Bundles ``FileSystemTools`` + ``ShellTools`` + ``InMemoryStore`` memory.
     No optional extras required.
 
     Args:
@@ -59,23 +59,23 @@ def qa_agent(
         workspace:              Working directory for file and shell tools.
         shell_allowed_commands: Allowlist of executables.  ``None`` = allow all.
         shell_timeout:          Hard wall-clock limit per shell command (seconds).
-        with_memory:            Inject ``InMemoryVector`` for within-session recall.
+        with_memory:            Inject ``InMemoryStore`` for within-session recall.
         max_steps:              Hard step cap.
         **kwargs:               Forwarded to ``GantryEngine`` (e.g. ``on_event``).
 
     Example::
 
-        agent = qa_agent(llm, workspace="/app", shell_allowed_commands=["python", "git"])
+        agent = code_agent(llm, workspace="/app", shell_allowed_commands=["python", "git"])
         agent.run("Run the test suite and fix any failures")
     """
     from gantrygraph.actions.filesystem import FileSystemTools
-    from gantrygraph.actions.shell import ShellTool
+    from gantrygraph.actions.shell import ShellTools
     from gantrygraph.engine.engine import GantryEngine
-    from gantrygraph.memory.in_memory import InMemoryVector
+    from gantrygraph.memory.in_memory import InMemoryStore
 
     tools: list[Any] = [
         FileSystemTools(workspace=workspace),
-        ShellTool(
+        ShellTools(
             workspace=workspace,
             allowed_commands=shell_allowed_commands,
             timeout=shell_timeout,
@@ -84,7 +84,7 @@ def qa_agent(
     return GantryEngine(
         llm=llm,
         tools=tools,
-        memory=InMemoryVector() if with_memory else None,
+        memory=InMemoryStore() if with_memory else None,
         max_steps=max_steps,
         **kwargs,
     )
@@ -112,7 +112,7 @@ def desktop_agent(
         **kwargs:       Forwarded to ``GantryEngine``.
     """
     from gantrygraph.engine.engine import GantryEngine
-    from gantrygraph.memory.in_memory import InMemoryVector
+    from gantrygraph.memory.in_memory import InMemoryStore
     from gantrygraph.perception.desktop import DesktopScreen
 
     try:
@@ -127,7 +127,7 @@ def desktop_agent(
         llm=llm,
         perception=DesktopScreen(max_resolution=max_resolution),
         tools=[MouseKeyboardTools()],
-        memory=InMemoryVector() if with_memory else None,
+        memory=InMemoryStore() if with_memory else None,
         max_steps=max_steps,
         **kwargs,
     )
@@ -170,7 +170,7 @@ def browser_agent(
         agent = browser_agent(llm)
     """
     from gantrygraph.engine.engine import GantryEngine
-    from gantrygraph.memory.in_memory import InMemoryVector
+    from gantrygraph.memory.in_memory import InMemoryStore
 
     try:
         from gantrygraph.actions.browser import BrowserTools
@@ -189,7 +189,7 @@ def browser_agent(
             llm=llm,
             perception=web,
             tools=[BrowserTools(headless=headless, web_page=web)],
-            memory=InMemoryVector() if with_memory else None,
+            memory=InMemoryStore() if with_memory else None,
             max_steps=max_steps,
             **kwargs,
         )
@@ -197,7 +197,7 @@ def browser_agent(
     return GantryEngine(
         llm=llm,
         tools=[BrowserTools(headless=headless)],
-        memory=InMemoryVector() if with_memory else None,
+        memory=InMemoryStore() if with_memory else None,
         max_steps=max_steps,
         **kwargs,
     )
@@ -233,7 +233,7 @@ def mcp_agent(
     """
     from gantrygraph.engine.engine import GantryEngine
     from gantrygraph.mcp.client import MCPClient
-    from gantrygraph.memory.in_memory import InMemoryVector
+    from gantrygraph.memory.in_memory import InMemoryStore
 
     if not server_commands:
         raise ValueError("mcp_agent requires at least one server_command.")
@@ -242,13 +242,13 @@ def mcp_agent(
     return GantryEngine(
         llm=llm,
         tools=list(connectors),
-        memory=InMemoryVector() if with_memory else None,
+        memory=InMemoryStore() if with_memory else None,
         max_steps=max_steps,
         **kwargs,
     )
 
 
-def cloud_agent(
+def api_agent(
     llm: Any,
     workspace: str = ".",
     *,
@@ -259,7 +259,7 @@ def cloud_agent(
 ) -> GantryEngine:
     """Agent preset optimised for cloud / container deployment.
 
-    Bundles ``FileSystemTools`` + ``ShellTool``.
+    Bundles ``FileSystemTools`` + ``ShellTools``.
     When ``enable_suspension=True``, uses ``MemorySaver`` so the agent can be
     frozen and resumed across HTTP requests (see ``POST /resume/{job_id}``).
 
@@ -276,18 +276,23 @@ def cloud_agent(
         **kwargs:          Forwarded to ``GantryEngine``.
     """
     from gantrygraph.actions.filesystem import FileSystemTools
-    from gantrygraph.actions.shell import ShellTool
+    from gantrygraph.actions.shell import ShellTools
     from gantrygraph.engine.engine import GantryEngine
-    from gantrygraph.memory.in_memory import InMemoryVector
+    from gantrygraph.memory.in_memory import InMemoryStore
 
     return GantryEngine(
         llm=llm,
         tools=[
             FileSystemTools(workspace=workspace),
-            ShellTool(workspace=workspace),
+            ShellTools(workspace=workspace),
         ],
-        memory=InMemoryVector() if with_memory else None,
+        memory=InMemoryStore() if with_memory else None,
         enable_suspension=enable_suspension,
         max_steps=max_steps,
         **kwargs,
     )
+
+
+# Backward compat aliases
+qa_agent = code_agent
+cloud_agent = api_agent

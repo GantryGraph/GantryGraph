@@ -2,9 +2,9 @@
 
 Quick start::
 
-    from gantrygraph.memory import InMemoryVector
+    from gantrygraph.memory import InMemoryStore
 
-    memory = InMemoryVector()
+    memory = InMemoryStore()
     agent = GantryEngine(llm=..., memory=memory)
 
 For persistent vector search backed by ChromaDB::
@@ -15,9 +15,9 @@ For persistent vector search backed by ChromaDB::
 """
 
 from gantrygraph.memory.base import BaseMemory, MemoryResult
-from gantrygraph.memory.in_memory import InMemoryVector
+from gantrygraph.memory.in_memory import InMemoryStore, InMemoryVector
 
-__all__ = ["BaseMemory", "MemoryResult", "InMemoryVector"]
+__all__ = ["BaseMemory", "MemoryResult", "InMemoryStore", "InMemoryVector"]
 
 try:
     from gantrygraph.memory.chroma import ChromaMemory

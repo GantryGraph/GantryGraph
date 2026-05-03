@@ -30,11 +30,11 @@ from gantrygraph.engine.nodes import (
 def build_graph(
     *,
     perception: BasePerception | None,
-    llm_with_tools: BaseChatModel,
+    bound_llm: BaseChatModel,
     tool_map: dict[str, BaseTool],
-    approval_cb: ApprovalCallback | None,
+    approval_callback: ApprovalCallback | None,
     guardrail: GuardrailPolicy | None,
-    event_cb: EventCallback | None,
+    on_event: EventCallback | None,
     max_steps: int,
     memory: BaseMemory | None = None,
     use_interrupt: bool = False,
@@ -62,20 +62,20 @@ def build_graph(
     )
     graph.add_node(
         "observe",
-        partial(observe_node, perception=perception, event_cb=event_cb),
+        partial(observe_node, perception=perception, on_event=on_event),
     )
     graph.add_node(
         "think",
-        partial(think_node, llm_with_tools=llm_with_tools, event_cb=event_cb),
+        partial(think_node, bound_llm=bound_llm, on_event=on_event),
     )
     graph.add_node(
         "act",
         partial(
             act_node,
             tool_map=tool_map,
-            approval_cb=approval_cb,
+            approval_callback=approval_callback,
             guardrail=guardrail,
-            event_cb=event_cb,
+            on_event=on_event,
             use_interrupt=use_interrupt,
         ),
     )

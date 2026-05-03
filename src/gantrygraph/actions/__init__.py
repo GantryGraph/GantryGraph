@@ -1,11 +1,12 @@
 """Action tool implementations for gantrygraph."""
 
 from gantrygraph.actions.filesystem import FileSystemTools
-from gantrygraph.actions.shell import ShellTool
+from gantrygraph.actions.shell import ShellTool, ShellTools
 
 __all__ = [
     "FileSystemTools",
-    "ShellTool",
+    "ShellTools",
+    "ShellTool",  # backward compat
     # Requires [desktop] extra:
     # "MouseKeyboardTools",
     # Requires [browser] extra:

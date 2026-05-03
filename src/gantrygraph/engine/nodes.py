@@ -55,7 +55,7 @@ async def observe_node(
     state: GantryState,
     *,
     perception: BasePerception | None,
-    event_cb: EventCallback | None,
+    on_event: EventCallback | None,
 ) -> dict[str, Any]:
     """Capture the current environment and append it as a HumanMessage."""
     from gantrygraph.core.events import GantryEvent, PerceptionResult
@@ -66,11 +66,11 @@ async def observe_node(
         result = PerceptionResult()
 
     content = result.to_message_content()
-    observation_msg = HumanMessage(content=content)  # type: ignore[arg-type]  # multimodal content list
+    observation = HumanMessage(content=content)  # type: ignore[arg-type]  # multimodal content list
 
-    if event_cb:
+    if on_event:
         await ensure_awaitable(
-            event_cb,
+            on_event,
             GantryEvent(
                 "observe", state["step_count"],
                 {
@@ -82,7 +82,7 @@ async def observe_node(
         )
 
     return {
-        "messages": [observation_msg],
+        "messages": [observation],
         "last_observation": result.model_dump(),
     }
 
@@ -92,23 +92,22 @@ async def observe_node(
 async def think_node(
     state: GantryState,
     *,
-    llm_with_tools: BaseChatModel,
-    event_cb: EventCallback | None,
+    bound_llm: BaseChatModel,
+    on_event: EventCallback | None,
 ) -> dict[str, Any]:
     """Invoke the LLM with the full message history and get the next action."""
     from gantrygraph.core.events import GantryEvent
 
-    response: AIMessage = await llm_with_tools.ainvoke(state["messages"])
+    response: AIMessage = await bound_llm.ainvoke(state["messages"])
 
     tool_names = [tc["name"] for tc in response.tool_calls] if response.tool_calls else []
     logger.debug("think step=%d tools=%s", state["step_count"], tool_names)
 
-    # Emit "done" when the LLM stops calling tools (final answer)
-    event_type: Literal["think", "done"] = "done" if not tool_names else "think"
-    if event_cb:
+    emit_type: Literal["think", "done"] = "done" if not tool_names else "think"
+    if on_event:
         await ensure_awaitable(
-            event_cb,
-            GantryEvent(event_type, state["step_count"], {"tool_calls": tool_names}),
+            on_event,
+            GantryEvent(emit_type, state["step_count"], {"tool_calls": tool_names}),
         )
 
     return {"messages": [response]}
@@ -120,9 +119,9 @@ async def act_node(
     state: GantryState,
     *,
     tool_map: dict[str, BaseTool],
-    approval_cb: ApprovalCallback | None,
+    approval_callback: ApprovalCallback | None,
     guardrail: GuardrailPolicy | None,
-    event_cb: EventCallback | None,
+    on_event: EventCallback | None,
     use_interrupt: bool = False,
 ) -> dict[str, Any]:
     """Execute tool calls from the last AIMessage.
@@ -144,7 +143,7 @@ async def act_node(
     if not isinstance(last_msg, AIMessage) or not last_msg.tool_calls:
         return {}
 
-    results: list[ToolMessage] = []
+    tool_messages: list[ToolMessage] = []
     executed_names: list[str] = []
 
     for tool_call in last_msg.tool_calls:
@@ -153,7 +152,7 @@ async def act_node(
         call_id: str = tool_call["id"] or ""
 
         # ── Approval gate ────────────────────────────────────────────────────
-        needs_approval = approval_cb is not None or (
+        needs_approval = approval_callback is not None or (
             guardrail is not None and name in guardrail.requires_approval
         )
         if needs_approval:
@@ -165,11 +164,11 @@ async def act_node(
                 approved: bool = interrupt(
                     {"tool": name, "args": args, "message": f"Approve '{name}'?"}
                 )
-            elif approval_cb is not None:
-                approved = await ensure_awaitable(approval_cb, name, args)
+            elif approval_callback is not None:
+                approved = await ensure_awaitable(approval_callback, name, args)
             else:
                 # Guardrail hit but no callback — deny by default
-                results.append(
+                tool_messages.append(
                     ToolMessage(
                         content=(
                             f"Action '{name}' requires approval but no"
@@ -183,7 +182,7 @@ async def act_node(
 
             if not approved:
                 logger.info("Tool '%s' denied", name)
-                results.append(
+                tool_messages.append(
                     ToolMessage(
                         content=f"Action '{name}' was denied.",
                         tool_call_id=call_id,
@@ -195,7 +194,7 @@ async def act_node(
         # ── Tool lookup ──────────────────────────────────────────────────────
         tool = tool_map.get(name)
         if tool is None:
-            results.append(
+            tool_messages.append(
                 ToolMessage(
                     content=(
                         f"Tool '{name}' is not available."
@@ -210,12 +209,12 @@ async def act_node(
         # ── Execute ──────────────────────────────────────────────────────────
         try:
             output = await tool.ainvoke(args)
-            results.append(ToolMessage(content=str(output), tool_call_id=call_id))
+            tool_messages.append(ToolMessage(content=str(output), tool_call_id=call_id))
             executed_names.append(name)
             logger.debug("Tool '%s' succeeded", name)
         except Exception as exc:
             logger.warning("Tool '%s' raised: %s", name, exc)
-            results.append(
+            tool_messages.append(
                 ToolMessage(
                     content=f"Tool '{name}' failed with error: {exc}. Try a different approach.",
                     tool_call_id=call_id,
@@ -223,18 +222,18 @@ async def act_node(
                 )
             )
 
-    if event_cb:
+    if on_event:
         await ensure_awaitable(
-            event_cb,
+            on_event,
             GantryEvent("act", state["step_count"], {"tools_executed": executed_names}),
         )
 
     return {
-        "messages": results,
+        "messages": tool_messages,
         "step_count": state["step_count"] + 1,
         "last_error": None
-        if all(r.status != "error" for r in results)
-        else str(results[-1].content),
+        if all(r.status != "error" for r in tool_messages)
+        else str(tool_messages[-1].content),
     }
 
 

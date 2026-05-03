@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from gantrygraph.core.base_action import BaseAction
 
 
-class ShellTool(BaseAction):
+class ShellTools(BaseAction):
     """Execute shell commands via ``asyncio.create_subprocess_exec``.
 
     Security controls:
@@ -42,7 +42,7 @@ class ShellTool(BaseAction):
         return [self._shell_tool()]
 
     def _shell_tool(self) -> BaseTool:
-        allowed = self._allowed
+        allowed_commands = self._allowed
         workspace = self._workspace
         timeout = self._timeout
 
@@ -59,10 +59,10 @@ class ShellTool(BaseAction):
             if not parts:
                 return "Error: empty command."
 
-            if allowed is not None and parts[0] not in allowed:
+            if allowed_commands is not None and parts[0] not in allowed_commands:
                 return (
                     f"Error: command '{parts[0]}' is not in the allowed list. "
-                    f"Allowed: {sorted(allowed)}"
+                    f"Allowed: {sorted(allowed_commands)}"
                 )
 
             try:
@@ -101,3 +101,6 @@ class ShellTool(BaseAction):
             ),
             args_schema=_Args,
         )
+
+
+ShellTool = ShellTools  # backward compat alias

@@ -37,14 +37,14 @@ from gantrygraph.engine.nodes import (
     should_continue,
     think_node,
 )
-from gantrygraph.lvm.base import BaseVisionProvider
-from gantrygraph.lvm.claude import ClaudeVision
 from gantrygraph.memory.base import BaseMemory, MemoryResult
-from gantrygraph.memory.in_memory import InMemoryVector
+from gantrygraph.memory.in_memory import InMemoryStore, InMemoryVector
 from gantrygraph.perception.multi import MultiPerception
 from gantrygraph.security.policies import BudgetPolicy, GuardrailPolicy, WorkspacePolicy
 from gantrygraph.swarm.worker import WorkerSpec
 from gantrygraph.tool import gantry_tool
+from gantrygraph.vision.base import BaseVisionProvider
+from gantrygraph.vision.claude import ClaudeVision
 
 __all__ = [
     # Engine
@@ -78,7 +78,8 @@ __all__ = [
     "BaseVisionProvider",
     "ClaudeVision",
     # Memory
-    "InMemoryVector",
+    "InMemoryStore",
+    "InMemoryVector",  # backward compat
     # Security
     "GuardrailPolicy",
     "WorkspacePolicy",

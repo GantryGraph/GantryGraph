@@ -9,40 +9,40 @@ from langchain_core.language_models.fake_chat_models import FakeMessagesListChat
 from langchain_core.messages import AIMessage
 
 from gantrygraph.swarm.supervisor import GantrySupervisor
-from gantrygraph.swarm.worker import ClawWorker, WorkerResult, WorkerSpec
+from gantrygraph.swarm.worker import AgentWorker, WorkerResult, WorkerSpec
 
 # ── WorkerResult ──────────────────────────────────────────────────────────────
 
 def test_worker_result_success() -> None:
-    r = WorkerResult(worker_id=0, task="do x", answer="done")
+    r = WorkerResult(worker_name="0", task="do x", result="done")
     assert r.success is True
     assert r.error is None
 
 
 def test_worker_result_failure() -> None:
-    r = WorkerResult(worker_id=1, task="fail", error="something broke")
+    r = WorkerResult(worker_name="1", task="fail", error="something broke")
     assert r.success is False
-    assert r.answer is None
+    assert r.result is None
 
 
 def test_worker_result_default_metadata() -> None:
-    r = WorkerResult(worker_id=0, task="t")
+    r = WorkerResult(worker_name="0", task="t")
     assert r.metadata == {}
 
 
-# ── ClawWorker ────────────────────────────────────────────────────────────────
+# ── AgentWorker ───────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_worker_run_success() -> None:
     mock_engine = MagicMock()
     mock_engine.arun = AsyncMock(return_value="task result")
 
-    worker = ClawWorker(worker_id=0, engine_factory=lambda: mock_engine)
+    worker = AgentWorker(worker_name="0", engine_factory=lambda: mock_engine)
     result = await worker.run("do something")
 
     assert result.success
-    assert result.answer == "task result"
-    assert result.worker_id == 0
+    assert result.result == "task result"
+    assert result.worker_name == "0"
     assert result.task == "do something"
 
 
@@ -51,12 +51,12 @@ async def test_worker_run_captures_exception() -> None:
     mock_engine = MagicMock()
     mock_engine.arun = AsyncMock(side_effect=RuntimeError("engine blew up"))
 
-    worker = ClawWorker(worker_id=1, engine_factory=lambda: mock_engine)
+    worker = AgentWorker(worker_name="1", engine_factory=lambda: mock_engine)
     result = await worker.run("broken task")
 
     assert not result.success
     assert result.error == "engine blew up"
-    assert result.answer is None
+    assert result.result is None
 
 
 @pytest.mark.asyncio
@@ -71,7 +71,7 @@ async def test_worker_factory_called_per_run() -> None:
         engine.arun = AsyncMock(return_value="ok")
         return engine
 
-    worker = ClawWorker(worker_id=0, engine_factory=factory)
+    worker = AgentWorker(worker_name="0", engine_factory=factory)
     await worker.run("t1")
     await worker.run("t2")
     assert call_count == 2
@@ -101,7 +101,7 @@ async def test_supervisor_runs_workers_concurrently() -> None:
         worker_factory=worker_factory,
         max_workers=4,
     )
-    result = await supervisor.run("Analyse some data")
+    result = await supervisor.arun("Analyse some data")
     assert isinstance(result, str)
     assert len(result) > 0
     # Both subtasks were dispatched
@@ -122,7 +122,7 @@ async def test_supervisor_falls_back_to_single_task_on_empty_decompose() -> None
         return engine
 
     supervisor = GantrySupervisor(llm=llm, worker_factory=factory, max_workers=2)
-    result = await supervisor.run("Single big task")
+    result = await supervisor.arun("Single big task")
     assert isinstance(result, str)
 
 
@@ -142,7 +142,7 @@ async def test_supervisor_max_workers_caps_parallel() -> None:
         return engine
 
     supervisor = GantrySupervisor(llm=llm, worker_factory=factory, max_workers=3)
-    await supervisor.run("Big task")
+    await supervisor.arun("Big task")
     assert len(call_log) == 3  # capped at max_workers
 
 
@@ -165,7 +165,7 @@ async def test_supervisor_handles_worker_failure() -> None:
         return engine
 
     supervisor = GantrySupervisor(llm=llm, worker_factory=factory, max_workers=2)
-    result = await supervisor.run("Mixed success task")
+    result = await supervisor.arun("Mixed success task")
     assert isinstance(result, str)
 
 
@@ -243,7 +243,7 @@ async def test_supervisor_routes_subtasks_to_specialists() -> None:
             WorkerSpec(name="writer",  engine=writer_engine,  description="Writes reports."),
         ],
     )
-    result = await supervisor.run("Analyse data and write a report")
+    result = await supervisor.arun("Analyse data and write a report")
 
     assert isinstance(result, str)
     assert len(result) > 0
@@ -270,7 +270,7 @@ async def test_supervisor_fallback_on_unknown_worker_name() -> None:
             WorkerSpec(name="first", engine=fallback_engine, description="Fallback worker."),
         ],
     )
-    await supervisor.run("Some task")
+    await supervisor.arun("Some task")
     assert len(fallback_log) == 1
 
 
@@ -297,8 +297,8 @@ async def test_supervisor_worker_metadata_in_result() -> None:
         llm=llm,
         workers=[WorkerSpec(name="specialist", engine=engine, description="Does stuff.")],
     )
-    await supervisor.run("task")
-    assert captured_results[0].metadata["worker_name"] == "specialist"
+    await supervisor.arun("task")
+    assert captured_results[0].worker_name == "specialist"
 
 
 @pytest.mark.asyncio
@@ -331,6 +331,6 @@ async def test_supervisor_specs_run_concurrently() -> None:
             WorkerSpec(name="slow2", engine=e2, description="Second."),
         ],
     )
-    await supervisor.run("parallel task")
+    await supervisor.arun("parallel task")
     assert len(started) == 2
     assert abs(started[1] - started[0]) < 0.04
