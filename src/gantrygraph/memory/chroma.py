@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    import chromadb  # type: ignore[import-not-found]
+    import chromadb
 
     _HAS_CHROMA = True
 except ImportError:
@@ -70,9 +70,9 @@ class ChromaMemory(BaseMemory):
         raw = await loop.run_in_executor(
             None, lambda: self._col.query(query_texts=[query], n_results=n)
         )
-        docs = raw.get("documents", [[]])[0]
-        metas = raw.get("metadatas", [[]])[0]
-        distances = raw.get("distances", [[]])[0]
+        docs = (raw.get("documents") or [[]])[0]
+        metas = (raw.get("metadatas") or [[]])[0]
+        distances = (raw.get("distances") or [[]])[0]
         results: list[MemoryResult] = []
         for doc, meta, dist in zip(docs, metas, distances, strict=False):
             # ChromaDB returns L2 distance; convert to 0..1 similarity

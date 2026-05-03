@@ -43,7 +43,7 @@ class DesktopScreen(BasePerception):
     def _capture_sync(self) -> tuple[bytes, int, int]:
         import mss
         import mss.tools
-        from PIL import Image  # type: ignore[import-untyped]
+        from PIL import Image
 
         with mss.mss() as sct:
             monitors = sct.monitors

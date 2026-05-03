@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from gantrygraph.core.base_action import BaseAction
 
 try:
-    import pyautogui as _pag  # type: ignore[import-untyped]  # noqa: F401
+    import pyautogui as _pag  # noqa: F401
 
     _HAS_PYAUTOGUI = True
 except Exception:  # pyautogui raises KeyError on headless Linux (missing DISPLAY)
