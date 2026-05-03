@@ -1,4 +1,5 @@
 """Unit tests for gantrygraph/actions — FileSystemTools and ShellTool."""
+
 from __future__ import annotations
 
 import sys
@@ -10,6 +11,7 @@ from gantrygraph.actions.filesystem import FileSystemTools
 from gantrygraph.actions.shell import ShellTools
 
 # ── FileSystemTools ──────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def tmp_workspace(tmp_path: Path) -> Path:
@@ -85,6 +87,7 @@ async def test_file_write_path_traversal_blocked(tmp_workspace: Path) -> None:
 
 # ── ShellTools ────────────────────────────────────────────────────────────────
 
+
 def test_shell_tool_returns_one_tool() -> None:
     tools = ShellTools().get_tools()
     assert len(tools) == 1
@@ -143,6 +146,7 @@ async def test_shell_tool_empty_command() -> None:
 
 # ── MouseKeyboardTools import guard ──────────────────────────────────────────
 
+
 def test_mouse_keyboard_raises_without_extra() -> None:
     """If pyautogui is not installed, ImportError with helpful message."""
     import importlib
@@ -151,6 +155,7 @@ def test_mouse_keyboard_raises_without_extra() -> None:
     with unittest.mock.patch.dict(sys.modules, {"pyautogui": None}):
         # Re-import the module to trigger the guard
         import gantrygraph.actions.mouse_keyboard as mkm
+
         importlib.reload(mkm)
         assert not mkm._HAS_PYAUTOGUI
         with pytest.raises(ImportError, match="desktop"):
@@ -159,6 +164,7 @@ def test_mouse_keyboard_raises_without_extra() -> None:
 
 # ── BrowserTools import guard ─────────────────────────────────────────────────
 
+
 def test_browser_tools_raises_without_extra() -> None:
     """If playwright is not installed, ImportError with helpful message."""
     import importlib
@@ -166,6 +172,7 @@ def test_browser_tools_raises_without_extra() -> None:
 
     with unittest.mock.patch.dict(sys.modules, {"playwright": None, "playwright.async_api": None}):
         import gantrygraph.actions.browser as bt
+
         importlib.reload(bt)
         assert not bt._HAS_PLAYWRIGHT
         with pytest.raises(ImportError, match="browser"):

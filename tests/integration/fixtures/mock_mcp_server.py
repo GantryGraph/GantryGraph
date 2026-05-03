@@ -8,6 +8,7 @@ The server exposes two tools:
 - ``echo(message: str) -> str``   — returns "ECHO: {message}"
 - ``add(a: int, b: int) -> str``  — returns the sum as a string
 """
+
 from mcp.server.fastmcp import FastMCP
 
 app = FastMCP("mock-test-server")

@@ -15,11 +15,14 @@ __all__ = ["DesktopScreen", "MultiPerception", "WebPage"]
 def __getattr__(name: str) -> object:
     if name == "DesktopScreen":
         from gantrygraph.perception.desktop import DesktopScreen
+
         return DesktopScreen
     if name == "MultiPerception":
         from gantrygraph.perception.multi import MultiPerception
+
         return MultiPerception
     if name == "WebPage":
         from gantrygraph.perception.web import WebPage
+
         return WebPage
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

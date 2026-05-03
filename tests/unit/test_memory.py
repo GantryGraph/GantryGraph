@@ -1,4 +1,5 @@
 """Unit tests for the gantrygraph.memory module."""
+
 from __future__ import annotations
 
 import pytest
@@ -7,6 +8,7 @@ from gantrygraph.memory.base import BaseMemory, MemoryResult
 from gantrygraph.memory.in_memory import InMemoryStore
 
 # ── BaseMemory ABC ────────────────────────────────────────────────────────────
+
 
 def test_base_memory_cannot_be_instantiated() -> None:
     with pytest.raises(TypeError):
@@ -26,6 +28,7 @@ def test_memory_result_default_metadata() -> None:
 
 
 # ── InMemoryStore ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_in_memory_empty_search_returns_nothing() -> None:
@@ -98,6 +101,7 @@ async def test_in_memory_metadata_preserved() -> None:
 
 # ── Engine integration with memory ───────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_engine_stores_result_in_memory() -> None:
     """After arun(), the task+result is stored in memory."""
@@ -107,9 +111,7 @@ async def test_engine_stores_result_in_memory() -> None:
     from gantrygraph import GantryEngine
 
     memory = InMemoryStore()
-    llm = FakeMessagesListChatModel(
-        responses=[AIMessage(content="Task completed successfully.")]
-    )
+    llm = FakeMessagesListChatModel(responses=[AIMessage(content="Task completed successfully.")])
     agent = GantryEngine(llm=llm, memory=memory, max_steps=5)
     await agent.arun("Fix the divide-by-zero bug")
 
@@ -143,6 +145,9 @@ async def test_engine_recalls_memory_on_second_run() -> None:
     await agent.arun("fix zero division error")
 
     # The memory recall HumanMessage should appear in the messages passed to LLM
-    texts = [m.content if isinstance(m.content, str) else str(m.content)
-             for m in captured_messages if isinstance(m, HumanMessage)]
+    texts = [
+        m.content if isinstance(m.content, str) else str(m.content)
+        for m in captured_messages
+        if isinstance(m, HumanMessage)
+    ]
     assert any("past experiences" in t.lower() or "fix bug" in t.lower() for t in texts)

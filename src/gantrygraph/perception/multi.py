@@ -1,4 +1,5 @@
 """MultiPerception — combine several BasePerception sources into one."""
+
 from __future__ import annotations
 
 import asyncio

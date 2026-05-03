@@ -1,4 +1,5 @@
 """BaseVisionProvider — wraps any LangChain BaseChatModel with vision preprocessing."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -38,18 +39,14 @@ class BaseVisionProvider:
             pass
         return self
 
-    async def ainvoke(
-        self, messages: list[BaseMessage], **kwargs: Any
-    ) -> AIMessage:
+    async def ainvoke(self, messages: list[BaseMessage], **kwargs: Any) -> AIMessage:
         """Preprocess messages then forward to the wrapped LLM."""
         processed = await self._preprocess(messages)
         return await self._llm.ainvoke(processed, **kwargs)
 
     # ── Override in subclasses ────────────────────────────────────────────────
 
-    async def _preprocess(
-        self, messages: list[BaseMessage]
-    ) -> list[BaseMessage]:
+    async def _preprocess(self, messages: list[BaseMessage]) -> list[BaseMessage]:
         """Transform messages before forwarding to the LLM.  Default: pass-through."""
         return messages
 
@@ -59,7 +56,5 @@ class BaseVisionProvider:
     def model_name(self) -> str:
         """Return the underlying model name, or 'unknown' if not detectable."""
         return (
-            getattr(self._llm, "model_name", None)
-            or getattr(self._llm, "model", None)
-            or "unknown"
+            getattr(self._llm, "model_name", None) or getattr(self._llm, "model", None) or "unknown"
         )

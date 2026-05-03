@@ -1,4 +1,5 @@
 """Unit tests for MCP module — schema conversion and tool generation."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -10,6 +11,7 @@ from langchain_core.tools import BaseTool
 from gantrygraph.mcp.client import MCPClient, _json_schema_to_pydantic, _wrap_mcp_tool
 
 # ── _json_schema_to_pydantic ─────────────────────────────────────────────────
+
 
 def test_json_schema_to_pydantic_simple() -> None:
     schema = {
@@ -63,6 +65,7 @@ def test_json_schema_to_pydantic_multiple_types() -> None:
 
 
 # ── _wrap_mcp_tool ──────────────────────────────────────────────────────
+
 
 def _make_mock_mcp_tool(name: str, description: str, schema: dict[str, Any]) -> Any:
     tool = MagicMock()
@@ -123,6 +126,7 @@ def test_wrap_mcp_tool_fallback_description() -> None:
 
 
 # ── MCPClient lifecycle (mocked) ──────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_mcp_client_get_tools_empty_before_enter() -> None:

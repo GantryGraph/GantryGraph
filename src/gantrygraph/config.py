@@ -29,6 +29,7 @@ Load from environment variables (prefix ``GANTRY_``)::
     #   export GANTRY_TELEMETRY_OTLP_ENDPOINT=http://localhost:4317
     config = GantryConfig.from_env()
 """
+
 from __future__ import annotations
 
 import os
@@ -153,9 +154,7 @@ class GantryConfig(BaseModel):
         if self.perception == "desktop":
             from gantrygraph.perception.desktop import DesktopScreen
 
-            perception = DesktopScreen(
-                max_resolution=self.desktop_max_resolution
-            )
+            perception = DesktopScreen(max_resolution=self.desktop_max_resolution)
         elif self.perception == "web":
             from gantrygraph.perception.web import WebPage
 
@@ -202,9 +201,7 @@ class GantryConfig(BaseModel):
 
         # ── guardrail ─────────────────────────────────────────────────────────
         if self.guardrail_requires_approval:
-            guardrail = GuardrailPolicy(
-                requires_approval=set(self.guardrail_requires_approval)
-            )
+            guardrail = GuardrailPolicy(requires_approval=set(self.guardrail_requires_approval))
 
         # ── budget ────────────────────────────────────────────────────────────
         budget = None

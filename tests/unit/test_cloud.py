@@ -1,4 +1,5 @@
 """Unit tests for cloud serve module using FastAPI TestClient."""
+
 from __future__ import annotations
 
 import asyncio
@@ -12,6 +13,7 @@ try:
     from httpx import ASGITransport, AsyncClient
 
     from gantrygraph.cloud.serve import _build_app, _job_queues, _jobs, _suspended_engines
+
     _HAS_CLOUD = True
 except ImportError:
     _HAS_CLOUD = False
@@ -32,6 +34,7 @@ def _make_engine_factory(answer: str = "done") -> Any:
         engine = MagicMock()
         engine.arun = AsyncMock(return_value=answer)
         return engine
+
     return factory
 
 
@@ -126,6 +129,7 @@ async def test_multiple_jobs_tracked_independently() -> None:
 
 # ── SSE streaming ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_stream_unknown_job_returns_404() -> None:
     app = _build_app(_make_engine_factory())
@@ -138,9 +142,7 @@ async def test_stream_unknown_job_returns_404() -> None:
 async def test_stream_endpoint_delivers_done_event() -> None:
     """SSE stream must terminate with event: done after job completes."""
     app = _build_app(_make_engine_factory(answer="streaming answer"))
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Submit job
         post = await client.post("/run", json={"task": "stream me"})
         job_id = post.json()["job_id"]
@@ -173,6 +175,7 @@ async def test_stream_delivers_agent_events() -> None:
         async def _arun(task: str, *, thread_id=None) -> str:
             if hasattr(engine, "_event_cb") and engine._event_cb:
                 from gantrygraph._utils import ensure_awaitable
+
                 await ensure_awaitable(
                     engine._event_cb, GantryEvent("act", 1, {"tools_executed": ["shell_run"]})
                 )
@@ -184,9 +187,7 @@ async def test_stream_delivers_agent_events() -> None:
         return engine
 
     app = _build_app(_factory)
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         post = await client.post("/run", json={"task": "track events"})
         job_id = post.json()["job_id"]
         await asyncio.sleep(0.1)
@@ -204,6 +205,7 @@ async def test_stream_delivers_agent_events() -> None:
 
 
 # ── Suspension / resume ───────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_resume_unknown_job_returns_404() -> None:

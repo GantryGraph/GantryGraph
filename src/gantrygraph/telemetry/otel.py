@@ -11,6 +11,7 @@ Compatible backends: Datadog, Grafana Tempo, Jaeger, Zipkin, or any
 OTLP-compatible collector.  Pass ``otlp_endpoint=None`` to log spans to
 stdout (useful during development).
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -30,10 +31,7 @@ try:
 except ImportError:
     _HAS_OTEL = False
 
-_INSTALL_MSG = (
-    "OTelExporter requires opentelemetry: "
-    "pip install 'gantrygraph[telemetry]'"
-)
+_INSTALL_MSG = "OTelExporter requires opentelemetry: pip install 'gantrygraph[telemetry]'"
 
 
 class OTelExporter:
@@ -67,18 +65,16 @@ class OTelExporter:
                 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore[import-not-found]
                     OTLPSpanExporter,
                 )
+
                 provider.add_span_processor(
                     BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint))
                 )
             except ImportError as exc:
                 raise ImportError(
-                    "OTLP export requires: "
-                    "pip install opentelemetry-exporter-otlp-proto-grpc"
+                    "OTLP export requires: pip install opentelemetry-exporter-otlp-proto-grpc"
                 ) from exc
         else:
-            provider.add_span_processor(
-                BatchSpanProcessor(ConsoleSpanExporter())
-            )
+            provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
         self._provider = provider
         self._tracer: Any = provider.get_tracer(service_name)

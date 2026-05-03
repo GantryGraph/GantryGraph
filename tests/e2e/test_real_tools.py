@@ -4,6 +4,7 @@ These tests verify that the tool layer works correctly in a realistic
 scenario: reading source files, running pytest, detecting failures,
 writing fixes, re-running to confirm.  They don't require an API key.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -30,6 +31,7 @@ def sandbox(tmp_path: Path) -> Path:
 
 # ── Real filesystem operations ────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_file_read_source_code(sandbox: Path) -> None:
     tools = {t.name: t for t in FileSystemTools(workspace=sandbox).get_tools()}
@@ -48,6 +50,7 @@ async def test_file_list_demo_app(sandbox: Path) -> None:
 
 
 # ── Real pytest execution ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_shell_detects_failing_tests(sandbox: Path) -> None:
@@ -94,9 +97,7 @@ async def test_full_tool_pipeline_fixes_all_bugs(sandbox: Path) -> None:
     shell = ShellTool(workspace=sandbox).get_tools()[0]
 
     # Step 1: run tests, confirm 3 failures
-    initial = await shell.ainvoke(
-        {"command": f"{_PY} -m pytest test_utils.py -v --tb=line"}
-    )
+    initial = await shell.ainvoke({"command": f"{_PY} -m pytest test_utils.py -v --tb=line"})
     assert "3 failed" in initial
 
     # Step 2: read source
@@ -112,14 +113,14 @@ async def test_full_tool_pipeline_fixes_all_bugs(sandbox: Path) -> None:
     )
     # Fix 2: is_palindrome
     fixed = fixed.replace(
-        "    # BUG 2: case-sensitive comparison — \"Racecar\" wrongly returns False\n"
+        '    # BUG 2: case-sensitive comparison — "Racecar" wrongly returns False\n'
         "    return text == text[::-1]",
         "    lower = text.lower()\n    return lower == lower[::-1]",
     )
     # Fix 3: word_count
     fixed = fixed.replace(
-        "    # BUG 3: split(\" \") fails on tabs and multiple consecutive spaces\n"
-        "    words = text.split(\" \")",
+        '    # BUG 3: split(" ") fails on tabs and multiple consecutive spaces\n'
+        '    words = text.split(" ")',
         "    words = text.split()",
     )
 
@@ -127,14 +128,13 @@ async def test_full_tool_pipeline_fixes_all_bugs(sandbox: Path) -> None:
     await fs_tools["file_write"].ainvoke({"path": "utils.py", "content": fixed})
 
     # Step 5: verify all tests pass
-    final = await shell.ainvoke(
-        {"command": f"{_PY} -m pytest test_utils.py -v"}
-    )
+    final = await shell.ainvoke({"command": f"{_PY} -m pytest test_utils.py -v"})
     assert "FAILED" not in final
     assert "14 passed" in final
 
 
 # ── Error self-correction simulation ─────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_shell_captures_syntax_error_gracefully(sandbox: Path) -> None:
@@ -151,7 +151,7 @@ async def test_shell_captures_syntax_error_gracefully(sandbox: Path) -> None:
     assert isinstance(result, str)
     assert len(result) > 0
     # Python syntax errors print to stderr, captured by ShellTool
-    assert ("SyntaxError" in result or "Error" in result or "error" in result)
+    assert "SyntaxError" in result or "Error" in result or "error" in result
 
 
 @pytest.mark.asyncio
@@ -172,6 +172,7 @@ async def test_path_traversal_blocked_even_in_e2e(sandbox: Path) -> None:
 
 
 # ── Token efficiency check ────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_screenshot_compression_reduces_size() -> None:
@@ -198,4 +199,4 @@ async def test_screenshot_compression_reduces_size() -> None:
     small_size = png_size(resized)
     ratio = small_size / big_size
     # Resized image should be at least 5× smaller
-    assert ratio < 0.2, f"Expected >5× compression, got {1/ratio:.1f}× (ratio={ratio:.2f})"
+    assert ratio < 0.2, f"Expected >5× compression, got {1 / ratio:.1f}× (ratio={ratio:.2f})"

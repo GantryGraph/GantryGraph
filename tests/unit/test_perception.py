@@ -1,4 +1,5 @@
 """Unit tests for perception module."""
+
 from __future__ import annotations
 
 import base64
@@ -12,9 +13,11 @@ from gantrygraph.core.events import PerceptionResult
 
 # ── DesktopScreen ─────────────────────────────────────────────────────────────
 
+
 def _make_small_png() -> bytes:
     """Generate a tiny valid 2×2 PNG in memory."""
     from PIL import Image
+
     img = Image.new("RGB", (2, 2), color=(255, 0, 0))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -97,6 +100,7 @@ def test_resize_preserving_aspect_maintains_ratio() -> None:
 
 # ── PerceptionResult.to_message_content (integration with desktop) ────────────
 
+
 @pytest.mark.asyncio
 async def test_desktop_result_produces_valid_message_content() -> None:
     from gantrygraph.perception.desktop import DesktopScreen
@@ -116,14 +120,14 @@ async def test_desktop_result_produces_valid_message_content() -> None:
 
 # ── WebPage import guard ──────────────────────────────────────────────────────
 
+
 def test_web_page_raises_without_extra() -> None:
     import importlib
     import unittest.mock
 
-    with unittest.mock.patch.dict(
-        sys.modules, {"playwright": None, "playwright.async_api": None}
-    ):
+    with unittest.mock.patch.dict(sys.modules, {"playwright": None, "playwright.async_api": None}):
         import gantrygraph.perception.web as wp
+
         importlib.reload(wp)
         assert not wp._HAS_PLAYWRIGHT
         with pytest.raises(ImportError, match="browser"):

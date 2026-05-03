@@ -7,6 +7,7 @@ see the source, call file_write to fix bugs, call shell_run again to verify.
 Uses FakeMessagesListChatModel with pre-scripted responses so the test is
 deterministic and doesn't require an API key.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -73,42 +74,50 @@ def _scripted_llm(sandbox: Path) -> FakeMessagesListChatModel:
             # Step 1: run tests to see what's broken
             AIMessage(
                 content="",
-                tool_calls=[{
-                    "name": "shell_run",
-                    "args": {"command": f"{_PY} -m pytest test_utils.py -v --tb=short"},
-                    "id": "c1",
-                    "type": "tool_call",
-                }],
+                tool_calls=[
+                    {
+                        "name": "shell_run",
+                        "args": {"command": f"{_PY} -m pytest test_utils.py -v --tb=short"},
+                        "id": "c1",
+                        "type": "tool_call",
+                    }
+                ],
             ),
             # Step 2: read the source file
             AIMessage(
                 content="",
-                tool_calls=[{
-                    "name": "file_read",
-                    "args": {"path": "utils.py"},
-                    "id": "c2",
-                    "type": "tool_call",
-                }],
+                tool_calls=[
+                    {
+                        "name": "file_read",
+                        "args": {"path": "utils.py"},
+                        "id": "c2",
+                        "type": "tool_call",
+                    }
+                ],
             ),
             # Step 3: write the fully fixed source
             AIMessage(
                 content="",
-                tool_calls=[{
-                    "name": "file_write",
-                    "args": {"path": "utils.py", "content": FIXED_UTILS},
-                    "id": "c3",
-                    "type": "tool_call",
-                }],
+                tool_calls=[
+                    {
+                        "name": "file_write",
+                        "args": {"path": "utils.py", "content": FIXED_UTILS},
+                        "id": "c3",
+                        "type": "tool_call",
+                    }
+                ],
             ),
             # Step 4: verify all tests pass
             AIMessage(
                 content="",
-                tool_calls=[{
-                    "name": "shell_run",
-                    "args": {"command": f"{_PY} -m pytest test_utils.py -v"},
-                    "id": "c4",
-                    "type": "tool_call",
-                }],
+                tool_calls=[
+                    {
+                        "name": "shell_run",
+                        "args": {"command": f"{_PY} -m pytest test_utils.py -v"},
+                        "id": "c4",
+                        "type": "tool_call",
+                    }
+                ],
             ),
             # Step 5: declare completion
             AIMessage(
@@ -125,6 +134,7 @@ def _scripted_llm(sandbox: Path) -> FakeMessagesListChatModel:
 
 
 # ── Core engine loop test ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_engine_loop_detects_and_fixes_bugs(sandbox: Path) -> None:
@@ -154,6 +164,7 @@ async def test_engine_loop_detects_and_fixes_bugs(sandbox: Path) -> None:
 
     # The tests should actually pass now
     import subprocess
+
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", "test_utils.py", "-v"],
         cwd=str(sandbox),
@@ -201,22 +212,26 @@ async def test_engine_loop_self_corrects_on_bad_command(sandbox: Path) -> None:
             # First: run a nonexistent command
             AIMessage(
                 content="",
-                tool_calls=[{
-                    "name": "shell_run",
-                    "args": {"command": "nonexistent_tool_xyz"},
-                    "id": "c1",
-                    "type": "tool_call",
-                }],
+                tool_calls=[
+                    {
+                        "name": "shell_run",
+                        "args": {"command": "nonexistent_tool_xyz"},
+                        "id": "c1",
+                        "type": "tool_call",
+                    }
+                ],
             ),
             # Then: recover and run a valid command
             AIMessage(
                 content="",
-                tool_calls=[{
-                    "name": "shell_run",
-                    "args": {"command": f"{_PY} -m pytest test_utils.py --tb=no -q"},
-                    "id": "c2",
-                    "type": "tool_call",
-                }],
+                tool_calls=[
+                    {
+                        "name": "shell_run",
+                        "args": {"command": f"{_PY} -m pytest test_utils.py --tb=no -q"},
+                        "id": "c2",
+                        "type": "tool_call",
+                    }
+                ],
             ),
             # Done
             AIMessage(content="Recovered from error and ran tests successfully."),
@@ -252,22 +267,26 @@ async def test_engine_guardrail_blocks_rm_rf(sandbox: Path) -> None:
             # Try a destructive command
             AIMessage(
                 content="",
-                tool_calls=[{
-                    "name": "shell_run",
-                    "args": {"command": "rm -rf utils.py"},
-                    "id": "c1",
-                    "type": "tool_call",
-                }],
+                tool_calls=[
+                    {
+                        "name": "shell_run",
+                        "args": {"command": "rm -rf utils.py"},
+                        "id": "c1",
+                        "type": "tool_call",
+                    }
+                ],
             ),
             # Then a safe command
             AIMessage(
                 content="",
-                tool_calls=[{
-                    "name": "shell_run",
-                    "args": {"command": f"{_PY} -m pytest test_utils.py --tb=no -q"},
-                    "id": "c2",
-                    "type": "tool_call",
-                }],
+                tool_calls=[
+                    {
+                        "name": "shell_run",
+                        "args": {"command": f"{_PY} -m pytest test_utils.py --tb=no -q"},
+                        "id": "c2",
+                        "type": "tool_call",
+                    }
+                ],
             ),
             AIMessage(content="Completed safely."),
         ]
@@ -295,14 +314,16 @@ async def test_engine_respects_max_steps_in_real_scenario(sandbox: Path) -> None
     responses = [
         AIMessage(
             content="",
-            tool_calls=[{
-                "name": "shell_run",
-                "args": {
-                    "command": f"{_PY} -m pytest test_utils.py -q --tb=no -k test_safe_divide_{i}",
-                },
-                "id": f"c{i}",
-                "type": "tool_call",
-            }],
+            tool_calls=[
+                {
+                    "name": "shell_run",
+                    "args": {
+                        "command": f"{_PY} -m pytest test_utils.py -q --tb=no -k test_safe_divide_{i}",
+                    },
+                    "id": f"c{i}",
+                    "type": "tool_call",
+                }
+            ],
         )
         for i in range(20)
     ]
@@ -318,6 +339,7 @@ async def test_engine_respects_max_steps_in_real_scenario(sandbox: Path) -> None
 
 
 # ── Performance sanity checks ─────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_engine_completes_in_reasonable_time(sandbox: Path) -> None:

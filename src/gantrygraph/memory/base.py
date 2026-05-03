@@ -1,4 +1,5 @@
 """Abstract base class for long-term memory backends."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

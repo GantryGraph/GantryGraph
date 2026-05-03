@@ -3,6 +3,7 @@
 Uses character-trigram Jaccard overlap for similarity scoring.
 Good for testing and low-volume use.  For production, use :class:`ChromaMemory`.
 """
+
 from __future__ import annotations
 
 from typing import Any

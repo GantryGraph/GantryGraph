@@ -1,4 +1,5 @@
 """GantrySupervisor — decomposes a task and runs workers in parallel."""
+
 from __future__ import annotations
 
 import asyncio
@@ -115,7 +116,8 @@ class GantrySupervisor:
         active_subtasks = subtasks[: self._max_workers]
         logger.info(
             "Spawning %d factory workers for %d subtasks",
-            len(active_subtasks), len(subtasks),
+            len(active_subtasks),
+            len(subtasks),
         )
         workers = [
             AgentWorker(worker_name=str(i), engine_factory=self._worker_factory)
@@ -133,13 +135,11 @@ class GantrySupervisor:
         assignments = await self._decompose_with_routing(task)
         logger.info(
             "Routing %d subtasks to %d specialist workers",
-            len(assignments), len(self._workers),
+            len(assignments),
+            len(self._workers),
         )
         results: list[WorkerResult] = await asyncio.gather(
-            *[
-                self._run_spec(spec, subtask)
-                for subtask, spec in assignments
-            ],
+            *[self._run_spec(spec, subtask) for subtask, spec in assignments],
             return_exceptions=False,
         )
         return await self._synthesize(task, results)
@@ -163,8 +163,10 @@ class GantrySupervisor:
             f"Task: {task}"
         )
         response = await self._llm.ainvoke(
-            [SystemMessage(content="You are a task decomposition assistant."),
-             HumanMessage(content=prompt)]
+            [
+                SystemMessage(content="You are a task decomposition assistant."),
+                HumanMessage(content=prompt),
+            ]
         )
         lines = str(response.content).strip().split("\n")
         subtasks: list[str] = []
@@ -188,9 +190,7 @@ class GantrySupervisor:
 
         Unrecognised worker names fall back to the first worker.
         """
-        worker_list = "\n".join(
-            f"- {w.name}: {w.description}" for w in self._workers
-        )
+        worker_list = "\n".join(f"- {w.name}: {w.description}" for w in self._workers)
         prompt = (
             f"You have these specialist workers:\n{worker_list}\n\n"
             "Break the following task into independent subtasks and assign each "
@@ -200,8 +200,10 @@ class GantrySupervisor:
             f"Task: {task}"
         )
         response = await self._llm.ainvoke(
-            [SystemMessage(content="You are a task decomposition and routing assistant."),
-             HumanMessage(content=prompt)]
+            [
+                SystemMessage(content="You are a task decomposition and routing assistant."),
+                HumanMessage(content=prompt),
+            ]
         )
         lines = str(response.content).strip().split("\n")
         worker_map = {w.name: w for w in self._workers}
@@ -240,7 +242,6 @@ class GantrySupervisor:
             "Synthesize the above results into a single, coherent final answer."
         )
         response = await self._llm.ainvoke(
-            [SystemMessage(content="You are a synthesis assistant."),
-             HumanMessage(content=prompt)]
+            [SystemMessage(content="You are a synthesis assistant."), HumanMessage(content=prompt)]
         )
         return str(response.content)

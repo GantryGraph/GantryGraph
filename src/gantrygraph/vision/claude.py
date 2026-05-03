@@ -4,6 +4,7 @@ Claude natively handles image coordinates and vision tasks, so no preprocessing
 is needed.  This class adds a validation warning when wrapped LLM is not a
 Claude model.
 """
+
 from __future__ import annotations
 
 import logging
@@ -61,8 +62,6 @@ class ClaudeVision(BaseVisionProvider):
                     stacklevel=3,
                 )
 
-    async def _preprocess(
-        self, messages: list[BaseMessage]
-    ) -> list[BaseMessage]:
+    async def _preprocess(self, messages: list[BaseMessage]) -> list[BaseMessage]:
         """Pass messages through unchanged — Claude handles images natively."""
         return messages

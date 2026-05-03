@@ -1,4 +1,5 @@
 """Unit tests for security policies and their enforcement in act_node."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,6 +13,7 @@ from gantrygraph.engine.nodes import act_node
 from gantrygraph.security.policies import BudgetPolicy, GuardrailPolicy, WorkspacePolicy
 
 # ── GuardrailPolicy ───────────────────────────────────────────────────────────
+
 
 def test_guardrail_policy_default_empty() -> None:
     p = GuardrailPolicy()
@@ -31,6 +33,7 @@ def test_guardrail_policy_unknown_tool_not_blocked() -> None:
 
 # ── WorkspacePolicy ───────────────────────────────────────────────────────────
 
+
 def test_workspace_policy_defaults() -> None:
     p = WorkspacePolicy(workspace_path="/tmp/project")
     assert p.workspace_path == "/tmp/project"
@@ -49,6 +52,7 @@ def test_workspace_policy_custom() -> None:
 
 
 # ── BudgetPolicy ──────────────────────────────────────────────────────────────
+
 
 def test_budget_policy_defaults() -> None:
     p = BudgetPolicy()
@@ -70,6 +74,7 @@ def test_budget_policy_max_steps_must_be_positive() -> None:
 
 
 # ── GuardrailPolicy enforcement in act_node ───────────────────────────────────
+
 
 def _state(**overrides: Any) -> Any:
     base = {
@@ -215,6 +220,7 @@ async def test_approval_callback_allow_executes_tool() -> None:
 
 
 # ── Workspace path traversal via _utils.safe_path ────────────────────────────
+
 
 def test_safe_path_blocks_double_dot(tmp_path: Path) -> None:
     from gantrygraph._utils import safe_path

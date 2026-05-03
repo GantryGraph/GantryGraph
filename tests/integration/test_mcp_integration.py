@@ -1,4 +1,5 @@
 """Integration tests — real MCP server subprocess via mock_mcp_server.py."""
+
 from __future__ import annotations
 
 import sys
@@ -38,10 +39,12 @@ async def test_mcp_client_add_tool() -> None:
 
 @pytest.mark.asyncio
 async def test_mcp_registry_with_two_clients() -> None:
-    registry = MCPToolRegistry([
-        MCPClient(SERVER_CMD),
-        MCPClient(SERVER_CMD),
-    ])
+    registry = MCPToolRegistry(
+        [
+            MCPClient(SERVER_CMD),
+            MCPClient(SERVER_CMD),
+        ]
+    )
     async with registry:
         tools = registry.get_tools()
         # Two servers, each with 2 tools = 4 total

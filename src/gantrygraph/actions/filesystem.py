@@ -1,4 +1,5 @@
 """Filesystem tools with workspace-boundary enforcement."""
+
 from __future__ import annotations
 
 import asyncio
@@ -118,9 +119,8 @@ class FileSystemTools(BaseAction):
                 return f"Error: '{path}' does not exist."
             if resolved.is_dir():
                 import shutil
-                await asyncio.get_event_loop().run_in_executor(
-                    None, shutil.rmtree, resolved
-                )
+
+                await asyncio.get_event_loop().run_in_executor(None, shutil.rmtree, resolved)
                 return f"Deleted directory '{path}'."
             await asyncio.get_event_loop().run_in_executor(None, resolved.unlink)
             return f"Deleted file '{path}'."

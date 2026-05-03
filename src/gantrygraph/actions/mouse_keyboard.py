@@ -4,6 +4,7 @@ Requires the ``[desktop]`` extra::
 
     pip install gantrygraph[desktop]
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -16,14 +17,12 @@ from gantrygraph.core.base_action import BaseAction
 
 try:
     import pyautogui as _pag  # type: ignore[import-untyped]  # noqa: F401
+
     _HAS_PYAUTOGUI = True
 except ImportError:
     _HAS_PYAUTOGUI = False
 
-_INSTALL_MSG = (
-    "MouseKeyboardTools requires the [desktop] extra: "
-    "pip install 'gantrygraph[desktop]'"
-)
+_INSTALL_MSG = "MouseKeyboardTools requires the [desktop] extra: pip install 'gantrygraph[desktop]'"
 
 
 class MouseKeyboardTools(BaseAction):
@@ -42,6 +41,7 @@ class MouseKeyboardTools(BaseAction):
         if not _HAS_PYAUTOGUI:
             raise ImportError(_INSTALL_MSG)
         import pyautogui
+
         pyautogui.FAILSAFE = fail_safe
         pyautogui.PAUSE = pause
         self._pag = pyautogui
@@ -139,9 +139,7 @@ class MouseKeyboardTools(BaseAction):
             )
 
         async def _hotkey(keys: list[str]) -> str:
-            await asyncio.get_event_loop().run_in_executor(
-                None, lambda: pag.hotkey(*keys)
-            )
+            await asyncio.get_event_loop().run_in_executor(None, lambda: pag.hotkey(*keys))
             return f"Pressed hotkey: {'+'.join(keys)}."
 
         return StructuredTool.from_function(

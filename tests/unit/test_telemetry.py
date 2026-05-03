@@ -1,4 +1,5 @@
 """Unit tests for the gantrygraph.telemetry module."""
+
 from __future__ import annotations
 
 import pytest
@@ -7,6 +8,7 @@ try:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
     from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
     _HAS_OTEL = True
 except ImportError:
     _HAS_OTEL = False
@@ -34,6 +36,7 @@ def _make_exporter_with_spy():
 
 # ── OTelExporter construction ─────────────────────────────────────────────────
 
+
 def test_otel_exporter_constructs_without_endpoint() -> None:
     from gantrygraph.telemetry.otel import OTelExporter
 
@@ -53,6 +56,7 @@ def test_otel_exporter_raises_without_extra() -> None:
 
     # Reload the module to re-evaluate the import guard
     import gantrygraph.telemetry.otel as otel_mod
+
     importlib.reload(otel_mod)
 
     try:
@@ -67,6 +71,7 @@ def test_otel_exporter_raises_without_extra() -> None:
 
 
 # ── as_event_callback ─────────────────────────────────────────────────────────
+
 
 def test_callback_creates_task_span_on_observe() -> None:
     from gantrygraph.core.events import GantryEvent
@@ -138,6 +143,7 @@ def test_force_flush_does_not_raise() -> None:
 
 # ── Engine + OTel integration ─────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_engine_with_otel_callback_records_spans() -> None:
     from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
@@ -148,9 +154,7 @@ async def test_engine_with_otel_callback_records_spans() -> None:
     exporter, spy = _make_exporter_with_spy()
     cb = exporter.as_event_callback()
 
-    llm = FakeMessagesListChatModel(
-        responses=[AIMessage(content="All done.")]
-    )
+    llm = FakeMessagesListChatModel(responses=[AIMessage(content="All done.")])
     agent = GantryEngine(llm=llm, on_event=cb, max_steps=5)
     result = await agent.arun("Test task")
 
