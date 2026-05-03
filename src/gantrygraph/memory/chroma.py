@@ -77,7 +77,7 @@ class ChromaMemory(BaseMemory):
         for doc, meta, dist in zip(docs, metas, distances, strict=False):
             # ChromaDB returns L2 distance; convert to 0..1 similarity
             score = 1.0 / (1.0 + dist)
-            results.append(MemoryResult(text=doc, score=score, metadata=meta or {}))
+            results.append(MemoryResult(text=doc, score=score, metadata=dict(meta or {})))
         return results
 
     async def close(self) -> None:
