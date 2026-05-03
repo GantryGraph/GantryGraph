@@ -1,4 +1,5 @@
 """Shell command execution tool with timeout and optional allowlist."""
+
 from __future__ import annotations
 
 import asyncio
@@ -49,8 +50,7 @@ class ShellTools(BaseAction):
         class _Args(BaseModel):
             command: str = Field(
                 description=(
-                    "Shell command to execute."
-                    " Use absolute paths or workspace-relative paths."
+                    "Shell command to execute. Use absolute paths or workspace-relative paths."
                 )
             )
 
@@ -75,9 +75,7 @@ class ShellTools(BaseAction):
             except (FileNotFoundError, OSError) as exc:
                 return f"Error: command not found — {exc}"
             try:
-                stdout_b, stderr_b = await asyncio.wait_for(
-                    proc.communicate(), timeout=timeout
-                )
+                stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             except TimeoutError:
                 proc.kill()
                 await proc.communicate()

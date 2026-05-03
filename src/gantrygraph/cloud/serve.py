@@ -21,6 +21,7 @@ Endpoints:
     POST /resume/{job_id}         → Resume a suspended job       202
     GET  /health                  → { status: "ok" }
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -54,6 +55,7 @@ _JOB_TTL = 3600  # seconds before completed/failed/suspended jobs are removed
 
 # ── request / response models (always importable) ─────────────────────────────
 
+
 class RunRequest(BaseModel):
     task: str
 
@@ -71,6 +73,7 @@ class ResumeRequest(BaseModel):
 
 
 # ── public entry point ────────────────────────────────────────────────────────
+
 
 def serve(
     engine_factory: Callable[[], Any],
@@ -204,6 +207,7 @@ def _build_app(engine_factory: Callable[[], Any]) -> FastAPI:
 
 
 # ── background task helpers ───────────────────────────────────────────────────
+
 
 async def _cleanup_job(job_id: str) -> None:
     """Remove a job from all state dicts after the TTL expires."""

@@ -1,4 +1,5 @@
 """MCPToolRegistry — manages multiple MCPClient instances as one group."""
+
 from __future__ import annotations
 
 from contextlib import AsyncExitStack

@@ -7,6 +7,7 @@ Verifies that:
 - a developer can inject a custom node between standard nodes
 - the custom graph runs end-to-end with a fake LLM
 """
+
 from __future__ import annotations
 
 from functools import partial
@@ -25,6 +26,7 @@ def _done_llm() -> FakeMessagesListChatModel:
 
 # ── Import surface ────────────────────────────────────────────────────────────
 
+
 def test_node_functions_importable_from_gantrygraph() -> None:
     from gantrygraph import (  # noqa: F401
         act_node,
@@ -34,10 +36,18 @@ def test_node_functions_importable_from_gantrygraph() -> None:
         should_continue,
         think_node,
     )
-    assert all(callable(f) for f in [
-        act_node, memory_recall_node, observe_node,
-        review_node, should_continue, think_node,
-    ])
+
+    assert all(
+        callable(f)
+        for f in [
+            act_node,
+            memory_recall_node,
+            observe_node,
+            review_node,
+            should_continue,
+            think_node,
+        ]
+    )
 
 
 def test_node_functions_importable_from_gantrygraph_engine() -> None:
@@ -50,15 +60,18 @@ def test_node_functions_importable_from_gantrygraph_engine() -> None:
         should_continue,
         think_node,
     )
+
     assert callable(build_graph)
 
 
 def test_build_graph_importable_from_gantrygraph() -> None:
     from gantrygraph import build_graph
+
     assert callable(build_graph)
 
 
 # ── get_graph() returns a working CompiledStateGraph ─────────────────────────
+
 
 def test_get_graph_returns_compiled_state_graph() -> None:
     from langgraph.graph.state import CompiledStateGraph
@@ -91,6 +104,7 @@ async def test_get_graph_ainvoke_produces_result() -> None:
 
 # ── Custom node injected between think and act ────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_custom_node_injected_between_think_and_act() -> None:
     """Developer injects a validation node; the loop completes normally."""
@@ -115,20 +129,27 @@ async def test_custom_node_injected_between_think_and_act() -> None:
     bound_llm = llm  # no tools needed for this test
 
     graph: StateGraph = StateGraph(GantryState)  # type: ignore[type-arg]
-    graph.add_node("observe",  partial(observe_node,  perception=None, on_event=None))
-    graph.add_node("think",    partial(think_node,    bound_llm=bound_llm,
-                                                       on_event=None))
-    graph.add_node("pre_act",  pre_act_hook)
-    graph.add_node("act",      partial(act_node,      tool_map={}, approval_callback=None,
-                                                       guardrail=None, on_event=None,
-                                                       use_interrupt=False))
-    graph.add_node("review",   review_node)
+    graph.add_node("observe", partial(observe_node, perception=None, on_event=None))
+    graph.add_node("think", partial(think_node, bound_llm=bound_llm, on_event=None))
+    graph.add_node("pre_act", pre_act_hook)
+    graph.add_node(
+        "act",
+        partial(
+            act_node,
+            tool_map={},
+            approval_callback=None,
+            guardrail=None,
+            on_event=None,
+            use_interrupt=False,
+        ),
+    )
+    graph.add_node("review", review_node)
 
-    graph.add_edge(START,      "observe")
-    graph.add_edge("observe",  "think")
-    graph.add_edge("think",    "pre_act")   # ← custom routing
-    graph.add_edge("pre_act",  "act")
-    graph.add_edge("act",      "review")
+    graph.add_edge(START, "observe")
+    graph.add_edge("observe", "think")
+    graph.add_edge("think", "pre_act")  # ← custom routing
+    graph.add_edge("pre_act", "act")
+    graph.add_edge("act", "review")
     graph.add_conditional_edges(
         "review",
         partial(should_continue, max_steps=5),
@@ -170,19 +191,27 @@ async def test_custom_node_can_short_circuit_loop() -> None:
     llm = _done_llm()
 
     graph: StateGraph = StateGraph(GantryState)  # type: ignore[type-arg]
-    graph.add_node("observe",    partial(observe_node, perception=None, on_event=None))
-    graph.add_node("think",      partial(think_node,   bound_llm=llm, on_event=None))
+    graph.add_node("observe", partial(observe_node, perception=None, on_event=None))
+    graph.add_node("think", partial(think_node, bound_llm=llm, on_event=None))
     graph.add_node("killswitch", killswitch)
-    graph.add_node("act",        partial(act_node,     tool_map={}, approval_callback=None,
-                                                        guardrail=None, on_event=None,
-                                                        use_interrupt=False))
-    graph.add_node("review",     review_node)
+    graph.add_node(
+        "act",
+        partial(
+            act_node,
+            tool_map={},
+            approval_callback=None,
+            guardrail=None,
+            on_event=None,
+            use_interrupt=False,
+        ),
+    )
+    graph.add_node("review", review_node)
 
-    graph.add_edge(START,        "observe")
-    graph.add_edge("observe",    "think")
-    graph.add_edge("think",      "killswitch")
+    graph.add_edge(START, "observe")
+    graph.add_edge("observe", "think")
+    graph.add_edge("think", "killswitch")
     graph.add_edge("killswitch", "act")
-    graph.add_edge("act",        "review")
+    graph.add_edge("act", "review")
     graph.add_conditional_edges(
         "review",
         partial(should_continue, max_steps=50),
@@ -190,18 +219,21 @@ async def test_custom_node_can_short_circuit_loop() -> None:
     )
     compiled = graph.compile()
 
-    result = await compiled.ainvoke({  # type: ignore[call-overload]
-        "task": "should stop early",
-        "messages": [],
-        "step_count": 0,
-        "is_done": False,
-    })
+    result = await compiled.ainvoke(
+        {  # type: ignore[call-overload]
+            "task": "should stop early",
+            "messages": [],
+            "step_count": 0,
+            "is_done": False,
+        }
+    )
     assert result["is_done"] is True
     # Only 1 iteration — killswitch fired on step 0
     assert result["step_count"] <= 1
 
 
 # ── on_event callback flows through custom graph ──────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_event_callback_works_in_custom_graph() -> None:
@@ -220,15 +252,23 @@ async def test_event_callback_works_in_custom_graph() -> None:
 
     graph: StateGraph = StateGraph(GantryState)  # type: ignore[type-arg]
     graph.add_node("observe", partial(observe_node, perception=None, on_event=capture))
-    graph.add_node("think",   partial(think_node,   bound_llm=llm, on_event=capture))
-    graph.add_node("act",     partial(act_node,     tool_map={}, approval_callback=None,
-                                                     guardrail=None, on_event=capture,
-                                                     use_interrupt=False))
-    graph.add_node("review",  review_node)
-    graph.add_edge(START,     "observe")
+    graph.add_node("think", partial(think_node, bound_llm=llm, on_event=capture))
+    graph.add_node(
+        "act",
+        partial(
+            act_node,
+            tool_map={},
+            approval_callback=None,
+            guardrail=None,
+            on_event=capture,
+            use_interrupt=False,
+        ),
+    )
+    graph.add_node("review", review_node)
+    graph.add_edge(START, "observe")
     graph.add_edge("observe", "think")
-    graph.add_edge("think",   "act")
-    graph.add_edge("act",     "review")
+    graph.add_edge("think", "act")
+    graph.add_edge("act", "review")
     graph.add_conditional_edges(
         "review",
         partial(should_continue, max_steps=5),
@@ -236,12 +276,14 @@ async def test_event_callback_works_in_custom_graph() -> None:
     )
     compiled = graph.compile()
 
-    await compiled.ainvoke({  # type: ignore[call-overload]
-        "task": "event test",
-        "messages": [],
-        "step_count": 0,
-        "is_done": False,
-    })
+    await compiled.ainvoke(
+        {  # type: ignore[call-overload]
+            "task": "event test",
+            "messages": [],
+            "step_count": 0,
+            "is_done": False,
+        }
+    )
 
     event_types = {e.event_type for e in received}
     assert "observe" in event_types

@@ -1,4 +1,5 @@
 """Integration tests — full agent loop with mock LLM and real tools."""
+
 from __future__ import annotations
 
 from typing import Any

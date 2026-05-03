@@ -5,6 +5,7 @@ Requires the ``[browser]`` extra::
     pip install gantrygraph[browser]
     playwright install chromium
 """
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -20,6 +21,7 @@ try:
         Page,
         async_playwright,
     )
+
     _HAS_PLAYWRIGHT = True
 except ImportError:
     _HAS_PLAYWRIGHT = False
@@ -142,9 +144,7 @@ class BrowserTools(BaseAction):
         ensure = self._ensure_browser
 
         class _Args(BaseModel):
-            selector: str = Field(
-                description="CSS or XPath selector of the element to click."
-            )
+            selector: str = Field(description="CSS or XPath selector of the element to click.")
 
         async def _click(selector: str) -> str:
             page = await ensure()

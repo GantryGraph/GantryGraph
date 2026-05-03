@@ -1,4 +1,5 @@
 """Unit tests for swarm module."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -12,6 +13,7 @@ from gantrygraph.swarm.supervisor import GantrySupervisor
 from gantrygraph.swarm.worker import AgentWorker, WorkerResult, WorkerSpec
 
 # ── WorkerResult ──────────────────────────────────────────────────────────────
+
 
 def test_worker_result_success() -> None:
     r = WorkerResult(worker_name="0", task="do x", result="done")
@@ -31,6 +33,7 @@ def test_worker_result_default_metadata() -> None:
 
 
 # ── AgentWorker ───────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_worker_run_success() -> None:
@@ -79,15 +82,14 @@ async def test_worker_factory_called_per_run() -> None:
 
 # ── GantrySupervisor ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_supervisor_runs_workers_concurrently() -> None:
     """Supervisor spawns multiple workers and synthesises their results."""
     decompose_response = AIMessage(content="1. Subtask A\n2. Subtask B")
     synthesize_response = AIMessage(content="Final synthesized answer.")
 
-    llm = FakeMessagesListChatModel(
-        responses=[decompose_response, synthesize_response]
-    )
+    llm = FakeMessagesListChatModel(responses=[decompose_response, synthesize_response])
 
     call_log: list[str] = []
 
@@ -129,7 +131,7 @@ async def test_supervisor_falls_back_to_single_task_on_empty_decompose() -> None
 @pytest.mark.asyncio
 async def test_supervisor_max_workers_caps_parallel() -> None:
     """No more than max_workers workers are spawned."""
-    many_subtasks = "\n".join(f"{i+1}. Task {i+1}" for i in range(10))
+    many_subtasks = "\n".join(f"{i + 1}. Task {i + 1}" for i in range(10))
     decompose_response = AIMessage(content=many_subtasks)
     synth = AIMessage(content="All done.")
 
@@ -171,6 +173,7 @@ async def test_supervisor_handles_worker_failure() -> None:
 
 # ── WorkerSpec ────────────────────────────────────────────────────────────────
 
+
 def test_worker_spec_construction() -> None:
     mock_engine = MagicMock()
     spec = WorkerSpec(name="analyst", engine=mock_engine, description="Analyses data.")
@@ -186,15 +189,18 @@ def test_worker_spec_default_description() -> None:
 
 def test_worker_spec_importable_from_gantrygraph() -> None:
     from gantrygraph import WorkerSpec as WS  # noqa: F401
+
     assert WS is WorkerSpec
 
 
 def test_worker_spec_importable_from_gantrygraph_swarm() -> None:
     from gantrygraph.swarm import WorkerSpec as WS  # noqa: F401
+
     assert WS is WorkerSpec
 
 
 # ── GantrySupervisor constructor validation ─────────────────────────────────────
+
 
 def test_supervisor_requires_factory_or_workers() -> None:
     llm = FakeMessagesListChatModel(responses=[])
@@ -214,13 +220,12 @@ def test_supervisor_rejects_both_factory_and_workers() -> None:
 
 # ── Heterogeneous worker path ─────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_supervisor_routes_subtasks_to_specialists() -> None:
     """Supervisor with WorkerSpec list routes subtasks and synthesises."""
     # LLM returns routing assignments then synthesis
-    route_response = AIMessage(
-        content="[analyst] Analyse the dataset\n[writer] Write the report"
-    )
+    route_response = AIMessage(content="[analyst] Analyse the dataset\n[writer] Write the report")
     synth_response = AIMessage(content="Combined result.")
     llm = FakeMessagesListChatModel(responses=[route_response, synth_response])
 
@@ -240,7 +245,7 @@ async def test_supervisor_routes_subtasks_to_specialists() -> None:
         llm=llm,
         workers=[
             WorkerSpec(name="analyst", engine=analyst_engine, description="Analyses data."),
-            WorkerSpec(name="writer",  engine=writer_engine,  description="Writes reports."),
+            WorkerSpec(name="writer", engine=writer_engine, description="Writes reports."),
         ],
     )
     result = await supervisor.arun("Analyse data and write a report")
@@ -287,9 +292,7 @@ async def test_supervisor_worker_metadata_in_result() -> None:
     engine.arun = AsyncMock(return_value="specialist answer")
 
     class _TracingSupervisor(GantrySupervisor):
-        async def _synthesize(
-            self, original_task: str, results: list[WorkerResult]
-        ) -> str:
+        async def _synthesize(self, original_task: str, results: list[WorkerResult]) -> str:
             captured_results.extend(results)
             return await super()._synthesize(original_task, results)
 
@@ -306,9 +309,7 @@ async def test_supervisor_specs_run_concurrently() -> None:
     """WorkerSpec engines are called concurrently, not sequentially."""
     import asyncio as _asyncio
 
-    route_response = AIMessage(
-        content="[slow1] First subtask\n[slow2] Second subtask"
-    )
+    route_response = AIMessage(content="[slow1] First subtask\n[slow2] Second subtask")
     synth_response = AIMessage(content="Done.")
     llm = FakeMessagesListChatModel(responses=[route_response, synth_response])
 

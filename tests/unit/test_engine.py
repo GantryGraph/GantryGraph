@@ -1,4 +1,5 @@
 """Unit tests for engine nodes — tested in isolation with mock LLMs."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -20,6 +21,7 @@ from gantrygraph.security.policies import GuardrailPolicy
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _base_state(**overrides: Any) -> GantryState:
     state: GantryState = {
         "task": "test task",
@@ -40,6 +42,7 @@ class _MockPerception:
 
 
 # ── observe_node ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_observe_node_no_perception() -> None:
@@ -71,6 +74,7 @@ async def test_observe_node_emits_event() -> None:
 
 # ── think_node ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_think_node_appends_ai_message(mock_llm_done_immediately: Any) -> None:
     state = _base_state(messages=[HumanMessage(content="hello")])
@@ -93,6 +97,7 @@ async def test_think_node_emits_event(mock_llm_done_immediately: Any) -> None:
 
 
 # ── act_node ─────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_act_node_executes_tool() -> None:
@@ -262,6 +267,7 @@ async def test_act_node_no_tool_calls_returns_empty() -> None:
 
 # ── review_node ──────────────────────────────────────────────────────────────
 
+
 def test_review_marks_done_when_no_tool_calls() -> None:
     state = _base_state(messages=[AIMessage(content="All done!")])
     update = review_node(state)
@@ -288,6 +294,7 @@ def test_review_empty_messages_marks_not_done() -> None:
 
 # ── should_continue ──────────────────────────────────────────────────────────
 
+
 def test_should_continue_loops_when_not_done() -> None:
     state = _base_state(step_count=3, is_done=False)
     result = should_continue(state, max_steps=10)
@@ -313,6 +320,7 @@ def test_should_continue_allows_one_more_before_max() -> None:
 
 
 # ── BudgetPolicy ──────────────────────────────────────────────────────────────
+
 
 def test_budget_policy_caps_max_steps() -> None:
     from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
@@ -351,6 +359,7 @@ async def test_budget_policy_wall_seconds_raises_timeout() -> None:
 
     class _SlowLLM:
         """Fake LLM that sleeps forever, simulating a stalled model call."""
+
         async def ainvoke(self, messages: Any, **kwargs: Any) -> AIMessage:
             await _asyncio.sleep(60)
             return AIMessage(content="done")
@@ -367,6 +376,7 @@ async def test_budget_policy_wall_seconds_raises_timeout() -> None:
 
 
 # ── WorkspacePolicy ───────────────────────────────────────────────────────────
+
 
 def test_workspace_policy_registers_tools() -> None:
     """workspace_policy auto-adds FileSystemTools + ShellTool to the registry."""
@@ -426,6 +436,7 @@ def test_workspace_policy_tools_prepended_before_raw_tools() -> None:
 
 # ── astream_events exception safety ──────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_astream_events_terminates_on_engine_exception() -> None:
     """If arun() raises, astream_events must not hang — it must propagate."""
@@ -452,20 +463,24 @@ async def test_astream_events_terminates_on_engine_exception() -> None:
 
 # ── vision module importability ───────────────────────────────────────────────
 
+
 def test_vision_importable_from_gantrygraph() -> None:
     from gantrygraph import BaseVisionProvider, ClaudeVision  # noqa: F401
+
     assert ClaudeVision is not None
     assert BaseVisionProvider is not None
 
 
 def test_vision_importable_from_gantrygraph_vision() -> None:
     from gantrygraph.vision import BaseVisionProvider, ClaudeVision  # noqa: F401
+
     assert ClaudeVision is not None
 
 
 def test_lvm_backward_compat_import() -> None:
     """gantrygraph.lvm still works as a backward-compat alias."""
     from gantrygraph.lvm import BaseVisionProvider, ClaudeVision  # noqa: F401
+
     assert ClaudeVision is not None
 
 
@@ -477,6 +492,7 @@ def test_claude_vision_is_base_vision_provider() -> None:
 
     llm = FakeMessagesListChatModel(responses=[AIMessage(content="ok")])
     import warnings
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         provider = ClaudeVision(llm)  # type: ignore[arg-type]

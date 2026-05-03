@@ -1,4 +1,5 @@
 """Desktop screen capture via mss + Pillow."""
+
 from __future__ import annotations
 
 import asyncio
@@ -48,8 +49,7 @@ class DesktopScreen(BasePerception):
             monitors = sct.monitors
             if self._monitor >= len(monitors):
                 raise ValueError(
-                    f"Monitor {self._monitor} not found. "
-                    f"Available monitors: 0-{len(monitors) - 1}."
+                    f"Monitor {self._monitor} not found. Available monitors: 0-{len(monitors) - 1}."
                 )
             monitor = monitors[self._monitor]
             raw = sct.grab(monitor)
@@ -63,9 +63,7 @@ class DesktopScreen(BasePerception):
         return buf.getvalue(), img.width, img.height
 
 
-def _resize_preserving_aspect(
-    img: Any, max_size: tuple[int, int]
-) -> Any:
+def _resize_preserving_aspect(img: Any, max_size: tuple[int, int]) -> Any:
     """Resize *img* so it fits within *max_size*, preserving aspect ratio."""
     from PIL import Image  # noqa: F401
 

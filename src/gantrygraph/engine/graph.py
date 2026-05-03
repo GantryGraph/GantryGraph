@@ -1,4 +1,5 @@
 """Assembles the LangGraph StateGraph from node functions and configuration."""
+
 from __future__ import annotations
 
 from functools import partial

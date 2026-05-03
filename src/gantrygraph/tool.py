@@ -27,6 +27,7 @@ Override name or description::
     def search(query: str) -> str:
         return db.fts(query)
 """
+
 from __future__ import annotations
 
 import inspect

@@ -1,4 +1,5 @@
 """Unit tests for src/gantrygraph/core — ABCs, PerceptionResult, GantryEvent, GantryState."""
+
 from __future__ import annotations
 
 from types import TracebackType
@@ -13,6 +14,7 @@ from gantrygraph.core.events import GantryEvent, PerceptionResult
 from gantrygraph.core.state import GantryState
 
 # ── BasePerception ───────────────────────────────────────────────────────────
+
 
 def test_base_perception_cannot_be_instantiated() -> None:
     with pytest.raises(TypeError):
@@ -48,6 +50,7 @@ async def test_base_perception_close_is_noop() -> None:
 
 # ── BaseAction ───────────────────────────────────────────────────────────────
 
+
 def test_base_action_cannot_be_instantiated() -> None:
     with pytest.raises(TypeError):
         BaseAction()  # type: ignore[abstract]
@@ -73,6 +76,7 @@ async def test_base_action_close_is_noop() -> None:
 
 
 # ── BaseMCPConnector ─────────────────────────────────────────────────────────
+
 
 def test_base_mcp_cannot_be_instantiated() -> None:
     with pytest.raises(TypeError):
@@ -128,6 +132,7 @@ async def test_mcp_connector_context_manager() -> None:
 
 
 # ── PerceptionResult ─────────────────────────────────────────────────────────
+
 
 def test_perception_result_defaults() -> None:
     r = PerceptionResult()
@@ -194,6 +199,7 @@ def test_perception_result_round_trip() -> None:
 
 # ── GantryEvent ────────────────────────────────────────────────────────────────
 
+
 def test_gantry_event_creation() -> None:
     ev = GantryEvent(event_type="think", step=3, data={"tokens": 500})
     assert ev.event_type == "think"
@@ -213,6 +219,7 @@ def test_gantry_event_all_types() -> None:
 
 
 # ── GantryState ────────────────────────────────────────────────────────────────
+
 
 def test_gantry_state_minimal() -> None:
     state: GantryState = {
@@ -241,6 +248,7 @@ def test_gantry_state_with_optional_fields() -> None:
 
 
 # ── _utils ───────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_ensure_awaitable_with_sync_fn() -> None:

@@ -1,4 +1,5 @@
 """MCP client — connects to an MCP server and exposes its tools as LangChain tools."""
+
 from __future__ import annotations
 
 import shlex
@@ -13,6 +14,7 @@ from gantrygraph.core.base_mcp import BaseMCPConnector
 try:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
+
     _HAS_MCP = True
 except ImportError:
     _HAS_MCP = False
@@ -77,9 +79,7 @@ class MCPClient(BaseMCPConnector):
         await self._session.initialize()
 
         result = await self._session.list_tools()
-        self._tools = [
-            _wrap_mcp_tool(t, self._session) for t in result.tools
-        ]
+        self._tools = [_wrap_mcp_tool(t, self._session) for t in result.tools]
         return self
 
     async def __aexit__(self, *args: object) -> None:
@@ -97,7 +97,7 @@ class MCPClient(BaseMCPConnector):
 
 def _wrap_mcp_tool(
     mcp_tool: Any,  # mcp.types.Tool
-    session: Any,   # ClientSession
+    session: Any,  # ClientSession
 ) -> StructuredTool:
     """Convert a single MCP tool descriptor into a LangChain StructuredTool."""
     name = mcp_tool.name

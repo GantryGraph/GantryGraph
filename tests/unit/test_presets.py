@@ -1,4 +1,5 @@
 """Unit tests for gantrygraph.presets and gantrygraph.config."""
+
 from __future__ import annotations
 
 import os
@@ -10,12 +11,11 @@ from langchain_core.messages import AIMessage
 
 
 def _done_llm() -> FakeMessagesListChatModel:
-    return FakeMessagesListChatModel(
-        responses=[AIMessage(content="Task complete.")]
-    )
+    return FakeMessagesListChatModel(responses=[AIMessage(content="Task complete.")])
 
 
 # ── Import-guard audit ────────────────────────────────────────────────────────
+
 
 def test_import_claw_never_fails() -> None:
     """`import gantrygraph` must succeed with only core deps installed."""
@@ -38,6 +38,7 @@ def test_import_claw_cloud_never_fails() -> None:
     """cloud __init__ must import without fastapi being used."""
     import gantrygraph.cloud  # noqa: F401
     from gantrygraph.cloud import RunRequest, RunResponse
+
     assert RunRequest is not None
     assert RunResponse is not None
 
@@ -45,6 +46,7 @@ def test_import_claw_cloud_never_fails() -> None:
 def test_import_gantry_memory_never_fails() -> None:
     import gantrygraph.memory  # noqa: F401
     from gantrygraph.memory import InMemoryStore
+
     assert InMemoryStore is not None
 
 
@@ -55,12 +57,14 @@ def test_import_claw_telemetry_never_fails() -> None:
 def test_import_claw_presets_never_fails() -> None:
     import gantrygraph.presets  # noqa: F401
     from gantrygraph.presets import code_agent
+
     assert callable(code_agent)
 
 
 def test_desktop_agent_raises_without_extra() -> None:
     """desktop_agent must give a clear ImportError when pyautogui is absent."""
     import sys
+
     pag_backup = sys.modules.pop("pyautogui", None)
     # Mark as unimportable
     sys.modules["pyautogui"] = None  # type: ignore[assignment]
@@ -68,10 +72,12 @@ def test_desktop_agent_raises_without_extra() -> None:
         import importlib
 
         import gantrygraph.actions.mouse_keyboard as mk
+
         importlib.reload(mk)
         if not mk._HAS_PYAUTOGUI:
             with pytest.raises(ImportError, match="desktop"):
                 from gantrygraph.presets import desktop_agent
+
                 desktop_agent(llm=_done_llm())
     finally:
         if pag_backup is not None:
@@ -83,16 +89,19 @@ def test_desktop_agent_raises_without_extra() -> None:
 
 def test_browser_agent_raises_without_extra() -> None:
     import sys
+
     pw_backup = sys.modules.pop("playwright", None)
     sys.modules["playwright"] = None  # type: ignore[assignment]
     try:
         import importlib
 
         import gantrygraph.actions.browser as bmod
+
         importlib.reload(bmod)
         if not bmod._HAS_PLAYWRIGHT:
             with pytest.raises(ImportError, match="browser"):
                 from gantrygraph.presets import browser_agent
+
                 browser_agent(llm=_done_llm())
     finally:
         if pw_backup is not None:
@@ -103,6 +112,7 @@ def test_browser_agent_raises_without_extra() -> None:
 
 
 # ── code_agent ──────────────────────────────────────────────────────────────────
+
 
 def test_code_agent_creates_engine(tmp_path: Any) -> None:
     from gantrygraph import GantryEngine
@@ -160,6 +170,7 @@ def test_code_agent_forwards_kwargs(tmp_path: Any) -> None:
 
 # ── api_agent ───────────────────────────────────────────────────────────────
 
+
 def test_api_agent_creates_engine(tmp_path: Any) -> None:
     from gantrygraph import GantryEngine
     from gantrygraph.presets import api_agent
@@ -171,14 +182,13 @@ def test_api_agent_creates_engine(tmp_path: Any) -> None:
 def test_api_agent_with_suspension_sets_checkpointer(tmp_path: Any) -> None:
     from gantrygraph.presets import api_agent
 
-    agent = api_agent(
-        llm=_done_llm(), workspace=str(tmp_path), enable_suspension=True
-    )
+    agent = api_agent(llm=_done_llm(), workspace=str(tmp_path), enable_suspension=True)
     assert agent._checkpointer is not None
     assert agent._use_interrupt is True
 
 
 # ── mcp_agent ─────────────────────────────────────────────────────────────────
+
 
 def test_mcp_agent_requires_at_least_one_server() -> None:
     from gantrygraph.presets import mcp_agent
@@ -196,6 +206,7 @@ def test_mcp_agent_creates_mcp_clients() -> None:
 
 
 # ── GantryConfig ────────────────────────────────────────────────────────────────
+
 
 def test_config_default_values() -> None:
     from gantrygraph import GantryConfig

@@ -1,4 +1,5 @@
 """AgentWorker — a single agent worker within a swarm."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

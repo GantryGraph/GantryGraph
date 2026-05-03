@@ -11,6 +11,7 @@ Loop structure::
                                                            ↓           ↓
                                                         observe       END
 """
+
 from __future__ import annotations
 
 import logging
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 # ── memory recall ─────────────────────────────────────────────────────────────
 
+
 async def memory_recall_node(
     state: GantryState,
     *,
@@ -50,6 +52,7 @@ async def memory_recall_node(
 
 
 # ── observe ──────────────────────────────────────────────────────────────────
+
 
 async def observe_node(
     state: GantryState,
@@ -72,7 +75,8 @@ async def observe_node(
         await ensure_awaitable(
             on_event,
             GantryEvent(
-                "observe", state["step_count"],
+                "observe",
+                state["step_count"],
                 {
                     "width": result.width,
                     "height": result.height,
@@ -88,6 +92,7 @@ async def observe_node(
 
 
 # ── think ────────────────────────────────────────────────────────────────────
+
 
 async def think_node(
     state: GantryState,
@@ -114,6 +119,7 @@ async def think_node(
 
 
 # ── act ──────────────────────────────────────────────────────────────────────
+
 
 async def act_node(
     state: GantryState,
@@ -197,8 +203,7 @@ async def act_node(
             tool_messages.append(
                 ToolMessage(
                     content=(
-                        f"Tool '{name}' is not available."
-                        f" Available tools: {list(tool_map.keys())}"
+                        f"Tool '{name}' is not available. Available tools: {list(tool_map.keys())}"
                     ),
                     tool_call_id=call_id,
                     status="error",
@@ -239,6 +244,7 @@ async def act_node(
 
 # ── review ───────────────────────────────────────────────────────────────────
 
+
 def review_node(state: GantryState) -> dict[str, Any]:
     """Decide whether the task is complete.
 
@@ -252,6 +258,7 @@ def review_node(state: GantryState) -> dict[str, Any]:
 
 
 # ── routing ──────────────────────────────────────────────────────────────────
+
 
 def should_continue(
     state: GantryState,

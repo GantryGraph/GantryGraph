@@ -31,6 +31,7 @@ Available presets:
 | ``api_agent``     | REST + SSE cloud deployment  | ``[cloud]``            |
 +-------------------+------------------------------+------------------------+
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -119,8 +120,7 @@ def desktop_agent(
         from gantrygraph.actions.mouse_keyboard import MouseKeyboardTools
     except ImportError as exc:
         raise ImportError(
-            "desktop_agent requires the [desktop] extra: "
-            "pip install 'gantrygraph[desktop]'"
+            "desktop_agent requires the [desktop] extra: pip install 'gantrygraph[desktop]'"
         ) from exc
 
     return GantryEngine(

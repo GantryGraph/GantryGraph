@@ -1,4 +1,5 @@
 """Unit tests for the @gantry_tool decorator."""
+
 from __future__ import annotations
 
 import pytest
@@ -12,6 +13,7 @@ def _done_llm() -> FakeMessagesListChatModel:
 
 
 # ── Construction ──────────────────────────────────────────────────────────────
+
 
 def test_sync_tool_returns_base_tool() -> None:
     from gantrygraph import gantry_tool
@@ -83,12 +85,14 @@ def test_missing_docstring_and_no_description_raises() -> None:
     from gantrygraph import gantry_tool
 
     with pytest.raises(ValueError, match="description"):
+
         @gantry_tool
         def no_doc(x: str) -> str:
             return x
 
 
 # ── Invocation ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_sync_tool_invocation() -> None:
@@ -118,6 +122,7 @@ async def test_async_tool_invocation() -> None:
 
 # ── Integration with GantryEngine ───────────────────────────────────────────────
 
+
 def test_gantry_tool_accepted_by_collect_tools() -> None:
     from gantrygraph import GantryEngine, gantry_tool
 
@@ -146,6 +151,8 @@ def test_gantry_tool_name_in_tool_registry() -> None:
 
 # ── Top-level export ──────────────────────────────────────────────────────────
 
+
 def test_gantry_tool_importable_from_gantrygraph() -> None:
     from gantrygraph import gantry_tool
+
     assert callable(gantry_tool)

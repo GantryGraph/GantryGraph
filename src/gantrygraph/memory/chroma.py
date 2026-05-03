@@ -4,6 +4,7 @@ Requires the ``[memory]`` extra::
 
     pip install 'gantrygraph[memory]'
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -13,6 +14,7 @@ from typing import Any
 
 try:
     import chromadb  # type: ignore[import-not-found]
+
     _HAS_CHROMA = True
 except ImportError:
     _HAS_CHROMA = False
@@ -61,9 +63,7 @@ class ChromaMemory(BaseMemory):
 
     async def search(self, query: str, k: int = 5) -> list[MemoryResult]:
         loop = asyncio.get_event_loop()
-        count: int = await loop.run_in_executor(
-            None, lambda: len(self._col.get()["ids"])
-        )
+        count: int = await loop.run_in_executor(None, lambda: len(self._col.get()["ids"]))
         if count == 0:
             return []
         n = min(k, count)

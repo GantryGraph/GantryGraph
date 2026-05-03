@@ -5,6 +5,7 @@ Requires the ``[browser]`` extra::
     pip install gantrygraph[browser]
     playwright install chromium
 """
+
 from __future__ import annotations
 
 import base64
@@ -20,6 +21,7 @@ try:
         Page,
         async_playwright,
     )
+
     _HAS_PLAYWRIGHT = True
 except ImportError:
     _HAS_PLAYWRIGHT = False

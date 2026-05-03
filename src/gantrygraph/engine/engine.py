@@ -1,4 +1,5 @@
 """GantryEngine — the main entry point for the gantrygraph framework."""
+
 from __future__ import annotations
 
 import asyncio
@@ -131,6 +132,7 @@ class GantryEngine:
         self._use_interrupt = enable_suspension or checkpointer is not None
         if self._use_interrupt and checkpointer is None:
             from langgraph.checkpoint.memory import MemorySaver
+
             checkpointer = MemorySaver()
         self._checkpointer = checkpointer
 
@@ -170,8 +172,7 @@ class GantryEngine:
                         )
                     except TimeoutError as exc:
                         raise TimeoutError(
-                            f"Agent exceeded budget wall time of "
-                            f"{self._budget.max_wall_seconds}s"
+                            f"Agent exceeded budget wall time of {self._budget.max_wall_seconds}s"
                         ) from exc
                 else:
                     final_state = await coro
@@ -221,6 +222,7 @@ class GantryEngine:
             compiled = self._build()
             try:
                 from langgraph.errors import GraphInterrupt
+
                 final_state: dict[str, Any] = await compiled.ainvoke(  # type: ignore[call-overload]
                     Command(resume=approved), config=config
                 )
@@ -336,7 +338,6 @@ class GantryEngine:
         if self._compiled is not None:
             return self._compiled
 
-
         tool_list = self._collect_tools()
         tool_map = {t.name: t for t in tool_list}
         if tool_list:
@@ -379,9 +380,7 @@ class GantryEngine:
             tools.extend(
                 FileSystemTools(workspace=self._workspace_policy.workspace_path).get_tools()
             )
-            tools.extend(
-                ShellTools(workspace=self._workspace_policy.workspace_path).get_tools()
-            )
+            tools.extend(ShellTools(workspace=self._workspace_policy.workspace_path).get_tools())
 
         for item in self._raw_tools:
             if isinstance(item, BaseMCPConnector):

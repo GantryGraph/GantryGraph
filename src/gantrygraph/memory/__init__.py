@@ -21,6 +21,7 @@ __all__ = ["BaseMemory", "MemoryResult", "InMemoryStore", "InMemoryVector"]
 
 try:
     from gantrygraph.memory.chroma import ChromaMemory
+
     __all__ += ["ChromaMemory"]
 except ImportError:
     pass

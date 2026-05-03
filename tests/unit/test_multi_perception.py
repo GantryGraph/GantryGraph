@@ -1,4 +1,5 @@
 """Unit tests for MultiPerception."""
+
 from __future__ import annotations
 
 import asyncio
@@ -12,6 +13,7 @@ from gantrygraph.core.events import PerceptionResult
 from gantrygraph.perception.multi import MultiPerception
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _perception(
     *,
@@ -38,6 +40,7 @@ def _perception(
 
 # ── Construction ──────────────────────────────────────────────────────────────
 
+
 def test_multi_perception_requires_at_least_one_source() -> None:
     with pytest.raises(ValueError, match="at least one"):
         MultiPerception([])
@@ -50,12 +53,15 @@ def test_multi_perception_is_base_perception() -> None:
 
 # ── Screenshot merge ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_first_screenshot_wins() -> None:
-    mp = MultiPerception([
-        _perception(screenshot_b64="FIRST", width=800, height=600),
-        _perception(screenshot_b64="SECOND", width=1920, height=1080),
-    ])
+    mp = MultiPerception(
+        [
+            _perception(screenshot_b64="FIRST", width=800, height=600),
+            _perception(screenshot_b64="SECOND", width=1920, height=1080),
+        ]
+    )
     result = await mp.observe()
     assert result.screenshot_b64 == "FIRST"
     assert result.width == 800
@@ -64,10 +70,12 @@ async def test_first_screenshot_wins() -> None:
 
 @pytest.mark.asyncio
 async def test_screenshot_from_second_when_first_has_none() -> None:
-    mp = MultiPerception([
-        _perception(accessibility_tree="tree only"),
-        _perception(screenshot_b64="ONLY_SCREENSHOT", width=1280, height=720),
-    ])
+    mp = MultiPerception(
+        [
+            _perception(accessibility_tree="tree only"),
+            _perception(screenshot_b64="ONLY_SCREENSHOT", width=1280, height=720),
+        ]
+    )
     result = await mp.observe()
     assert result.screenshot_b64 == "ONLY_SCREENSHOT"
     assert result.width == 1280
@@ -75,22 +83,27 @@ async def test_screenshot_from_second_when_first_has_none() -> None:
 
 @pytest.mark.asyncio
 async def test_no_screenshot_when_none_provided() -> None:
-    mp = MultiPerception([
-        _perception(accessibility_tree="text only"),
-        _perception(accessibility_tree="more text"),
-    ])
+    mp = MultiPerception(
+        [
+            _perception(accessibility_tree="text only"),
+            _perception(accessibility_tree="more text"),
+        ]
+    )
     result = await mp.observe()
     assert result.screenshot_b64 is None
 
 
 # ── Accessibility tree merge ──────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_trees_are_concatenated_with_labels() -> None:
-    mp = MultiPerception([
-        _perception(accessibility_tree="desktop state"),
-        _perception(accessibility_tree="browser state"),
-    ])
+    mp = MultiPerception(
+        [
+            _perception(accessibility_tree="desktop state"),
+            _perception(accessibility_tree="browser state"),
+        ]
+    )
     result = await mp.observe()
     assert result.accessibility_tree is not None
     assert "desktop state" in result.accessibility_tree
@@ -101,10 +114,12 @@ async def test_trees_are_concatenated_with_labels() -> None:
 
 @pytest.mark.asyncio
 async def test_empty_trees_are_skipped() -> None:
-    mp = MultiPerception([
-        _perception(accessibility_tree=None),
-        _perception(accessibility_tree="only this one"),
-    ])
+    mp = MultiPerception(
+        [
+            _perception(accessibility_tree=None),
+            _perception(accessibility_tree="only this one"),
+        ]
+    )
     result = await mp.observe()
     assert result.accessibility_tree is not None
     assert "source 1" not in result.accessibility_tree
@@ -113,31 +128,38 @@ async def test_empty_trees_are_skipped() -> None:
 
 @pytest.mark.asyncio
 async def test_no_tree_when_all_none() -> None:
-    mp = MultiPerception([
-        _perception(screenshot_b64="img"),
-    ])
+    mp = MultiPerception(
+        [
+            _perception(screenshot_b64="img"),
+        ]
+    )
     result = await mp.observe()
     assert result.accessibility_tree is None
 
 
 # ── URL + metadata merge ──────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_first_url_wins() -> None:
-    mp = MultiPerception([
-        _perception(url="https://first.example.com"),
-        _perception(url="https://second.example.com"),
-    ])
+    mp = MultiPerception(
+        [
+            _perception(url="https://first.example.com"),
+            _perception(url="https://second.example.com"),
+        ]
+    )
     result = await mp.observe()
     assert result.url == "https://first.example.com"
 
 
 @pytest.mark.asyncio
 async def test_metadata_merged() -> None:
-    mp = MultiPerception([
-        _perception(metadata={"source": "desktop", "fps": 30}),
-        _perception(metadata={"source": "browser", "url": "https://x.com"}),
-    ])
+    mp = MultiPerception(
+        [
+            _perception(metadata={"source": "desktop", "fps": 30}),
+            _perception(metadata={"source": "browser", "url": "https://x.com"}),
+        ]
+    )
     result = await mp.observe()
     assert result.metadata["fps"] == 30
     assert result.metadata["url"] == "https://x.com"
@@ -145,6 +167,7 @@ async def test_metadata_merged() -> None:
 
 
 # ── Concurrency ───────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_sources_are_called_concurrently() -> None:
@@ -166,6 +189,7 @@ async def test_sources_are_called_concurrently() -> None:
 
 # ── close() propagates ────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_close_calls_all_sources() -> None:
     s1 = _perception()
@@ -178,11 +202,14 @@ async def test_close_calls_all_sources() -> None:
 
 # ── Importable from gantrygraph and gantrygraph.perception ──────────────────────────────────
 
+
 def test_importable_from_gantrygraph() -> None:
     from gantrygraph import MultiPerception as MP  # noqa: F401
+
     assert MP is MultiPerception
 
 
 def test_importable_from_gantrygraph_perception() -> None:
     from gantrygraph.perception import MultiPerception as MP  # noqa: F401
+
     assert MP is MultiPerception
