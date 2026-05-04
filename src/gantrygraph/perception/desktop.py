@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
-from typing import Any
+from typing import Any, Literal
 
 from gantrygraph.core.base_perception import BasePerception
 from gantrygraph.core.events import PerceptionResult
+
+_LOW_RES = (1280, 720)
 
 
 class DesktopScreen(BasePerception):
@@ -18,10 +20,22 @@ class DesktopScreen(BasePerception):
     resizing, both of which are in the core dependency set.  Capture is
     dispatched to a thread pool to avoid blocking the async event loop.
 
+    Args:
+        max_resolution: Maximum ``(width, height)`` of the captured image.
+                        Images are scaled down preserving aspect ratio.
+        monitor:        Monitor index (1 = primary).
+        png_quality:    PNG compression level passed to Pillow (0–95).
+        vision_mode:    ``"high"`` (default) uses *max_resolution* as-is.
+                        ``"low"`` caps the resolution at 1280×720, reducing
+                        vision token cost at the expense of fine detail.
+
     Example::
 
         vision = DesktopScreen(max_resolution=(1280, 720), monitor=1)
         agent = GantryEngine(..., perception=vision)
+
+        # Faster / cheaper — suitable for tasks that don't need pixel-perfect reads
+        vision = DesktopScreen(vision_mode="low")
     """
 
     def __init__(
@@ -29,7 +43,10 @@ class DesktopScreen(BasePerception):
         max_resolution: tuple[int, int] = (1920, 1080),
         monitor: int = 1,
         png_quality: int = 85,
+        vision_mode: Literal["high", "low"] = "high",
     ) -> None:
+        if vision_mode == "low":
+            max_resolution = (min(max_resolution[0], _LOW_RES[0]), min(max_resolution[1], _LOW_RES[1]))
         self._max_resolution = max_resolution
         self._monitor = monitor
         self._png_quality = png_quality

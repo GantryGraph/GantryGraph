@@ -2,6 +2,7 @@
 
 from gantrygraph.security.policies import (
     ApprovalCallback,
+    BudgetExceededError,
     BudgetPolicy,
     EventCallback,
     GuardrailPolicy,
@@ -12,6 +13,7 @@ __all__ = [
     "GuardrailPolicy",
     "WorkspacePolicy",
     "BudgetPolicy",
+    "BudgetExceededError",
     "ApprovalCallback",
     "EventCallback",
 ]

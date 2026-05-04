@@ -54,3 +54,31 @@ def safe_path(workspace: Path, user_path: str) -> Path:
             f"Path '{user_path}' escapes the workspace boundary '{workspace}'."
         ) from None
     return resolved
+
+
+def safe_path_multi(allowed_paths: list[Path] | None, user_path: str) -> Path:
+    """Resolve *user_path*, ensuring it falls within at least one allowed directory.
+
+    If *allowed_paths* is ``None`` the path is resolved without restriction
+    (unrestricted / full-access mode).
+
+    For relative paths, resolution is attempted against each allowed path in
+    order; the first match wins.  For absolute paths the full list is checked.
+    """
+    if allowed_paths is None:
+        return Path(user_path).resolve()
+
+    p = Path(user_path)
+    resolved = (allowed_paths[0] / user_path).resolve() if not p.is_absolute() else p.resolve()
+
+    for base in allowed_paths:
+        try:
+            resolved.relative_to(base.resolve())
+            return resolved
+        except ValueError:
+            continue
+
+    raise PermissionError(
+        f"Path '{user_path}' escapes the workspace boundary. "
+        f"Allowed directories: {[str(b) for b in allowed_paths]}"
+    ) from None

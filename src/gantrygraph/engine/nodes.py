@@ -14,6 +14,7 @@ Loop structure::
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -26,7 +27,12 @@ if TYPE_CHECKING:
     from gantrygraph.core.base_perception import BasePerception
     from gantrygraph.core.state import GantryState
     from gantrygraph.memory.base import BaseMemory
-    from gantrygraph.security.policies import ApprovalCallback, EventCallback, GuardrailPolicy
+    from gantrygraph.security.policies import (
+        ApprovalCallback,
+        BudgetPolicy,
+        EventCallback,
+        GuardrailPolicy,
+    )
 
 from gantrygraph._utils import ensure_awaitable
 
@@ -60,13 +66,39 @@ async def observe_node(
     perception: BasePerception | None,
     on_event: EventCallback | None,
 ) -> dict[str, Any]:
-    """Capture the current environment and append it as a HumanMessage."""
+    """Capture the current environment and append it as a HumanMessage.
+
+    Screenshot diffing: if the captured screenshot is byte-for-byte identical
+    to the previous observation, the image is omitted from the message sent to
+    the LLM.  Only the accessibility tree (if any) is forwarded.  This avoids
+    re-paying vision token costs when the screen has not changed between steps.
+    """
     from gantrygraph.core.events import GantryEvent, PerceptionResult
 
     if perception is not None:
         result: PerceptionResult = await perception.observe()
     else:
         result = PerceptionResult()
+
+    # Screenshot diffing -------------------------------------------------------
+    new_hash: str | None = state.get("last_screenshot_hash")
+    screenshot_cached = False
+    if result.screenshot_b64:
+        current_hash = hashlib.sha256(result.screenshot_b64.encode()).hexdigest()
+        if current_hash == state.get("last_screenshot_hash"):
+            # Screen unchanged — send only the accessibility tree to save tokens.
+            result = PerceptionResult(
+                screenshot_b64=None,
+                accessibility_tree=result.accessibility_tree,
+                url=result.url,
+                width=result.width,
+                height=result.height,
+                metadata={**result.metadata, "screenshot_cached": True},
+            )
+            screenshot_cached = True
+        else:
+            new_hash = current_hash
+    # --------------------------------------------------------------------------
 
     content = result.to_message_content()
     observation = HumanMessage(content=content)  # type: ignore[arg-type]  # multimodal content list
@@ -81,6 +113,7 @@ async def observe_node(
                     "width": result.width,
                     "height": result.height,
                     "screenshot_b64": result.screenshot_b64,
+                    "screenshot_cached": screenshot_cached,
                 },
             ),
         )
@@ -88,6 +121,7 @@ async def observe_node(
     return {
         "messages": [observation],
         "last_observation": result.model_dump(),
+        "last_screenshot_hash": new_hash,
     }
 
 
@@ -99,14 +133,46 @@ async def think_node(
     *,
     bound_llm: BaseChatModel,
     on_event: EventCallback | None,
+    budget: BudgetPolicy | None = None,
 ) -> dict[str, Any]:
-    """Invoke the LLM with the full message history and get the next action."""
+    """Invoke the LLM with the full message history and get the next action.
+
+    When a ``BudgetPolicy`` with ``max_tokens`` is provided, the cumulative
+    token count is tracked via ``AIMessage.usage_metadata``.  On breach,
+    behaviour is controlled by ``budget.on_limit``:
+
+    - ``"stop"`` (default): raises ``BudgetExceededError``.
+    - ``"warn"``: logs a warning and continues.
+    """
     from gantrygraph.core.events import GantryEvent
 
     response: AIMessage = await bound_llm.ainvoke(state["messages"])
 
     tool_names = [tc["name"] for tc in response.tool_calls] if response.tool_calls else []
     logger.debug("think step=%d tools=%s", state["step_count"], tool_names)
+
+    updates: dict[str, Any] = {}
+
+    # Token budget enforcement -------------------------------------------------
+    if budget is not None and budget.max_tokens is not None:
+        raw_usage = response.usage_metadata
+        usage: dict[str, Any] = dict(raw_usage) if raw_usage is not None else {}
+        step_tokens = (usage.get("input_tokens") or 0) + (usage.get("output_tokens") or 0)
+        new_total = state.get("total_tokens", 0) + step_tokens
+        updates["total_tokens"] = new_total
+        if new_total >= budget.max_tokens:
+            if budget.on_limit == "stop":
+                from gantrygraph.security.policies import BudgetExceededError
+
+                raise BudgetExceededError(
+                    f"Token budget of {budget.max_tokens:,} exceeded "
+                    f"({new_total:,} tokens used across this run)."
+                )
+            else:
+                logger.warning(
+                    "Token budget of %d exceeded (%d used)", budget.max_tokens, new_total
+                )
+    # --------------------------------------------------------------------------
 
     emit_type: Literal["think", "done"] = "done" if not tool_names else "think"
     if on_event:
@@ -115,7 +181,7 @@ async def think_node(
             GantryEvent(emit_type, state["step_count"], {"tool_calls": tool_names}),
         )
 
-    return {"messages": [response]}
+    return {"messages": [response], **updates}
 
 
 # ── act ──────────────────────────────────────────────────────────────────────
@@ -163,8 +229,6 @@ async def act_node(
         )
         if needs_approval:
             if use_interrupt:
-                # Deep suspension: persist state to checkpointer and pause.
-                # Execution resumes when engine.resume(thread_id, approved=...) is called.
                 from langgraph.types import interrupt
 
                 approved: bool = interrupt(
@@ -173,7 +237,6 @@ async def act_node(
             elif approval_callback is not None:
                 approved = await ensure_awaitable(approval_callback, name, args)
             else:
-                # Guardrail hit but no callback — deny by default
                 tool_messages.append(
                     ToolMessage(
                         content=(

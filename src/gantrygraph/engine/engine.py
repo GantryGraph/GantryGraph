@@ -7,7 +7,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -115,12 +115,12 @@ class GantryEngine:
         enable_suspension: bool = False,
         budget: BudgetPolicy | None = None,
         workspace_policy: WorkspacePolicy | None = None,
+        telemetry: Literal["silent", "stdout", "langsmith"] | None = None,
     ) -> None:
         self._llm = llm
         self._perception = perception
         self._raw_tools: list[_AnyTool] = tools or []
         self._approval_cb = approval_callback
-        self._event_cb = on_event
         self._max_steps = max_steps
         self._max_consecutive_errors = max_consecutive_errors
         self._guardrail = guardrail
@@ -129,6 +129,32 @@ class GantryEngine:
         self._compiled: CompiledStateGraph[Any] | None = None
         self._budget = budget
         self._workspace_policy = workspace_policy
+
+        # Telemetry setup -------------------------------------------------------
+        if telemetry == "silent":
+            logging.getLogger("gantrygraph").setLevel(logging.CRITICAL)
+        elif telemetry == "stdout":
+            builtin_cb = _stdout_callback
+            if on_event is not None:
+                _user_cb = on_event
+
+                async def _merged_cb(event: GantryEvent) -> None:
+                    builtin_cb(event)
+                    from gantrygraph._utils import ensure_awaitable
+
+                    await ensure_awaitable(_user_cb, event)
+
+                on_event = _merged_cb
+            else:
+                on_event = builtin_cb
+        elif telemetry == "langsmith":
+            import os
+
+            os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+            os.environ.setdefault("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
+        # -----------------------------------------------------------------------
+
+        self._event_cb = on_event
 
         # BudgetPolicy caps max_steps
         if budget is not None:
@@ -368,6 +394,7 @@ class GantryEngine:
             memory=self._memory,
             use_interrupt=self._use_interrupt,
             checkpointer=self._checkpointer,
+            budget=self._budget,
         )
         return self._compiled
 
@@ -379,15 +406,22 @@ class GantryEngine:
 
         tools: list[BaseTool] = []
 
-        # workspace_policy auto-creates locked FileSystemTools + ShellTools
+        # workspace_policy auto-creates FileSystemTools + ShellTools
         if self._workspace_policy is not None:
             from gantrygraph.actions.filesystem import FileSystemTools
             from gantrygraph.actions.shell import ShellTools
 
-            tools.extend(
-                FileSystemTools(workspace=self._workspace_policy.workspace_path).get_tools()
-            )
-            tools.extend(ShellTools(workspace=self._workspace_policy.workspace_path).get_tools())
+            policy = self._workspace_policy
+            if policy.unrestricted:
+                tools.extend(FileSystemTools(unrestricted=True).get_tools())
+                tools.extend(ShellTools().get_tools())
+            elif policy.allowed_paths:
+                tools.extend(FileSystemTools(allowed_paths=policy.allowed_paths).get_tools())
+                tools.extend(ShellTools(workspace=policy.allowed_paths[0]).get_tools())
+            elif policy.workspace_path:
+                # Fallback for direct construction without going through validator
+                tools.extend(FileSystemTools(workspace=policy.workspace_path).get_tools())
+                tools.extend(ShellTools(workspace=policy.workspace_path).get_tools())
 
         for item in self._raw_tools:
             if isinstance(item, BaseMCPConnector):
@@ -426,6 +460,8 @@ class GantryEngine:
             "messages": messages,
             "step_count": 0,
             "is_done": False,
+            "total_tokens": 0,
+            "last_screenshot_hash": None,
         }
 
     @staticmethod
@@ -482,3 +518,19 @@ async def _run_sync_safe(cb: Any, event: Any) -> None:
     from gantrygraph._utils import ensure_awaitable
 
     await ensure_awaitable(cb, event)
+
+
+def _stdout_callback(event: Any) -> None:
+    """Built-in telemetry="stdout" handler — pretty-prints each GantryEvent."""
+    _COLORS = {
+        "observe": "\033[94m",
+        "think": "\033[93m",
+        "act": "\033[92m",
+        "done": "\033[96m",
+        "error": "\033[91m",
+        "review": "\033[90m",
+    }
+    reset = "\033[0m"
+    color = _COLORS.get(event.event_type, "")
+    data = {k: v for k, v in event.data.items() if k != "screenshot_b64"}
+    print(f"{color}[gantry step={event.step:02d}] {event.event_type.upper():<8}{reset}  {data}")

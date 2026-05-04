@@ -58,3 +58,4 @@ uv.lock
 .env.production
 *.pem
 *.key
+.vercel

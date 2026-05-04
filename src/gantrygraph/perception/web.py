@@ -64,6 +64,24 @@ _STEALTH_INIT_SCRIPT = """
 """
 
 
+def _downscale_png(png_bytes: bytes, max_size: tuple[int, int]) -> bytes:
+    """Resize PNG bytes to fit within *max_size*, preserving aspect ratio."""
+    import io
+
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(png_bytes))
+    max_w, max_h = max_size
+    if img.width <= max_w and img.height <= max_h:
+        return png_bytes
+    ratio = min(max_w / img.width, max_h / img.height)
+    new_w, new_h = int(img.width * ratio), int(img.height * ratio)
+    img = img.resize((new_w, new_h), resample=3)  # LANCZOS = 3
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
 class WebPage(BasePerception):
     """Capture a web page's screenshot and accessibility tree.
 
@@ -92,6 +110,7 @@ class WebPage(BasePerception):
         stealth: bool = True,
         include_screenshot: bool = True,
         include_accessibility: bool = True,
+        vision_mode: Literal["high", "low"] = "high",
     ) -> None:
         if not _HAS_PLAYWRIGHT:
             raise ImportError(_INSTALL_MSG)
@@ -101,6 +120,7 @@ class WebPage(BasePerception):
         self._stealth = stealth
         self._include_screenshot = include_screenshot
         self._include_accessibility = include_accessibility
+        self._vision_mode = vision_mode
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
@@ -168,6 +188,8 @@ class WebPage(BasePerception):
 
         if self._include_screenshot:
             png_bytes = await page.screenshot(type="png")
+            if self._vision_mode == "low":
+                png_bytes = _downscale_png(png_bytes, (1280, 720))
             screenshot_b64 = base64.b64encode(png_bytes).decode("ascii")
 
         if self._include_accessibility:

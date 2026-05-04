@@ -17,13 +17,20 @@ class GantryState(TypedDict):
 
     Fields
     ------
-    task:             The original task string passed to ``GantryEngine.run()``.
-    messages:         Full conversation history, auto-appended via reducer.
-    step_count:       Number of act-node executions so far; used by budget guard.
-    is_done:          Set to True by the review node to terminate the loop.
-    last_error:       Most recent tool error message (for self-correction context).
-    last_observation: Raw ``PerceptionResult.model_dump()`` from the last observe
-                      node; stored so nodes can access it without re-capturing.
+    task:                 The original task string passed to ``GantryEngine.run()``.
+    messages:             Full conversation history, auto-appended via reducer.
+    step_count:           Number of act-node executions so far; used by budget guard.
+    is_done:              Set to True by the review node to terminate the loop.
+    last_error:           Most recent tool error message (for self-correction context).
+    last_observation:     Raw ``PerceptionResult.model_dump()`` from the last observe
+                          node; stored so nodes can access it without re-capturing.
+    consecutive_errors:   Back-to-back tool failure counter; terminates the loop when
+                          it reaches ``max_consecutive_errors``.
+    last_screenshot_hash: SHA-256 hex digest of the last screenshot sent to the LLM.
+                          If the next observation produces the same hash the image is
+                          omitted from the message, saving tokens.
+    total_tokens:         Cumulative token count across all LLM calls in this run.
+                          Tracked by ``think_node`` via ``AIMessage.usage_metadata``.
     """
 
     task: str
@@ -33,3 +40,5 @@ class GantryState(TypedDict):
     last_error: NotRequired[str | None]
     last_observation: NotRequired[Any]
     consecutive_errors: NotRequired[int]
+    last_screenshot_hash: NotRequired[str | None]
+    total_tokens: NotRequired[int]

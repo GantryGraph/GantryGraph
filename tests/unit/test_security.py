@@ -41,6 +41,11 @@ def test_workspace_policy_defaults() -> None:
     assert p.allow_write_outside is False
 
 
+def test_workspace_policy_legacy_promotes_to_allowed_paths() -> None:
+    p = WorkspacePolicy(workspace_path="/tmp/project")
+    assert p.allowed_paths == ["/tmp/project"]
+
+
 def test_workspace_policy_custom() -> None:
     p = WorkspacePolicy(
         workspace_path="/home/user",
@@ -51,6 +56,24 @@ def test_workspace_policy_custom() -> None:
     assert p.allow_write_outside is False
 
 
+def test_workspace_policy_restricted_factory() -> None:
+    p = WorkspacePolicy.restricted("/tmp/work")
+    assert p.allowed_paths == ["/tmp/work"]
+    assert not p.unrestricted
+
+
+def test_workspace_policy_multi_path_factory() -> None:
+    p = WorkspacePolicy.multi_path(["/tmp/input", "/tmp/output"])
+    assert p.allowed_paths == ["/tmp/input", "/tmp/output"]
+    assert not p.unrestricted
+
+
+def test_workspace_policy_full_access_factory() -> None:
+    p = WorkspacePolicy.full_access()
+    assert p.unrestricted is True
+    assert p.allowed_paths == []
+
+
 # ── BudgetPolicy ──────────────────────────────────────────────────────────────
 
 
@@ -59,6 +82,7 @@ def test_budget_policy_defaults() -> None:
     assert p.max_steps == 50
     assert p.max_tokens is None
     assert p.max_wall_seconds is None
+    assert p.on_limit == "stop"
 
 
 def test_budget_policy_custom() -> None:
@@ -68,9 +92,60 @@ def test_budget_policy_custom() -> None:
     assert p.max_wall_seconds == 30.0
 
 
+def test_budget_policy_on_limit_warn() -> None:
+    p = BudgetPolicy(max_tokens=1000, on_limit="warn")
+    assert p.on_limit == "warn"
+
+
 def test_budget_policy_max_steps_must_be_positive() -> None:
     with pytest.raises(ValueError):
         BudgetPolicy(max_steps=0)
+
+
+# ── BudgetExceededError ───────────────────────────────────────────────────────
+
+
+def test_budget_exceeded_error_is_exception() -> None:
+    from gantrygraph.security.policies import BudgetExceededError
+
+    err = BudgetExceededError("Token budget of 1,000 exceeded (1,200 used).")
+    assert isinstance(err, Exception)
+    assert "1,000" in str(err)
+
+
+# ── safe_path_multi ───────────────────────────────────────────────────────────
+
+
+def test_safe_path_multi_single_allowed(tmp_path: Path) -> None:
+    from gantrygraph._utils import safe_path_multi
+
+    result = safe_path_multi([tmp_path], "subdir/file.txt")
+    assert str(result).startswith(str(tmp_path.resolve()))
+
+
+def test_safe_path_multi_blocks_traversal(tmp_path: Path) -> None:
+    from gantrygraph._utils import safe_path_multi
+
+    with pytest.raises(PermissionError, match="escapes the workspace"):
+        safe_path_multi([tmp_path], "../../etc/passwd")
+
+
+def test_safe_path_multi_allows_any_path_when_unrestricted() -> None:
+    from gantrygraph._utils import safe_path_multi
+
+    result = safe_path_multi(None, "/tmp/anywhere.txt")
+    assert result.name == "anywhere.txt"
+
+
+def test_safe_path_multi_second_allowed_path_accepted(tmp_path: Path) -> None:
+    from gantrygraph._utils import safe_path_multi
+
+    other = tmp_path / "other"
+    other.mkdir()
+    # Absolute path inside the second allowed directory should be accepted
+    target = other / "file.txt"
+    result = safe_path_multi([tmp_path / "first", other], str(target))
+    assert result == target.resolve()
 
 
 # ── GuardrailPolicy enforcement in act_node ───────────────────────────────────
