@@ -40,7 +40,12 @@ from gantrygraph.engine.nodes import (
 from gantrygraph.memory.base import BaseMemory, MemoryResult
 from gantrygraph.memory.in_memory import InMemoryStore, InMemoryVector
 from gantrygraph.perception.multi import MultiPerception
-from gantrygraph.security.policies import BudgetPolicy, GuardrailPolicy, WorkspacePolicy
+from gantrygraph.security.policies import (
+    BudgetExceededError,
+    BudgetPolicy,
+    GuardrailPolicy,
+    WorkspacePolicy,
+)
 from gantrygraph.swarm.worker import WorkerSpec
 from gantrygraph.tool import gantry_tool
 from gantrygraph.vision.base import BaseVisionProvider
@@ -84,6 +89,7 @@ __all__ = [
     "GuardrailPolicy",
     "WorkspacePolicy",
     "BudgetPolicy",
+    "BudgetExceededError",
     # Swarm
     "WorkerSpec",
 ]

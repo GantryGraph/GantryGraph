@@ -16,7 +16,12 @@ if TYPE_CHECKING:
 
     from gantrygraph.core.base_perception import BasePerception
     from gantrygraph.memory.base import BaseMemory
-    from gantrygraph.security.policies import ApprovalCallback, EventCallback, GuardrailPolicy
+    from gantrygraph.security.policies import (
+        ApprovalCallback,
+        BudgetPolicy,
+        EventCallback,
+        GuardrailPolicy,
+    )
 
 from gantrygraph.engine.nodes import (
     act_node,
@@ -41,6 +46,7 @@ def build_graph(
     memory: BaseMemory | None = None,
     use_interrupt: bool = False,
     checkpointer: Any = None,
+    budget: BudgetPolicy | None = None,
 ) -> CompiledStateGraph[Any]:
     """Build and compile the gantrygraph agent StateGraph.
 
@@ -68,7 +74,7 @@ def build_graph(
     )
     graph.add_node(
         "think",
-        partial(think_node, bound_llm=bound_llm, on_event=on_event),
+        partial(think_node, bound_llm=bound_llm, on_event=on_event, budget=budget),
     )
     graph.add_node(
         "act",

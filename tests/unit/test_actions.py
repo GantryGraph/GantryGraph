@@ -85,6 +85,61 @@ async def test_file_write_path_traversal_blocked(tmp_workspace: Path) -> None:
         await tools["file_write"].ainvoke({"path": "../evil.txt", "content": "bad"})
 
 
+# ── FileSystemTools multi-path ────────────────────────────────────────────────
+
+
+@pytest.fixture
+def tmp_multi(tmp_path: Path) -> tuple[Path, Path]:
+    src = tmp_path / "src"
+    dst = tmp_path / "dst"
+    src.mkdir()
+    dst.mkdir()
+    (src / "input.txt").write_text("from src", encoding="utf-8")
+    return src, dst
+
+
+def test_filesystem_tools_multi_path_construction(tmp_multi: tuple[Path, Path]) -> None:
+    src, dst = tmp_multi
+    tools = FileSystemTools(allowed_paths=[str(src), str(dst)]).get_tools()
+    assert len(tools) == 4
+
+
+@pytest.mark.asyncio
+async def test_filesystem_tools_multi_path_read_from_first(tmp_multi: tuple[Path, Path]) -> None:
+    src, dst = tmp_multi
+    tools = {t.name: t for t in FileSystemTools(allowed_paths=[str(src), str(dst)]).get_tools()}
+    result = await tools["file_read"].ainvoke({"path": "input.txt"})
+    assert result == "from src"
+
+
+@pytest.mark.asyncio
+async def test_filesystem_tools_multi_path_write_to_second(tmp_multi: tuple[Path, Path]) -> None:
+    src, dst = tmp_multi
+    tools = {t.name: t for t in FileSystemTools(allowed_paths=[str(src), str(dst)]).get_tools()}
+    target = str(dst / "output.txt")
+    result = await tools["file_write"].ainvoke({"path": target, "content": "to dst"})
+    assert "Written" in result
+    assert (dst / "output.txt").read_text() == "to dst"
+
+
+@pytest.mark.asyncio
+async def test_filesystem_tools_multi_path_blocks_outside(tmp_multi: tuple[Path, Path]) -> None:
+    src, dst = tmp_multi
+    tools = {t.name: t for t in FileSystemTools(allowed_paths=[str(src), str(dst)]).get_tools()}
+    with pytest.raises(PermissionError):
+        await tools["file_read"].ainvoke({"path": "../../etc/passwd"})
+
+
+def test_filesystem_tools_unrestricted_construction() -> None:
+    tools = FileSystemTools(unrestricted=True).get_tools()
+    assert len(tools) == 4
+
+
+def test_filesystem_tools_requires_workspace_or_paths() -> None:
+    with pytest.raises(ValueError, match="workspace"):
+        FileSystemTools()
+
+
 # ── ShellTools ────────────────────────────────────────────────────────────────
 
 
