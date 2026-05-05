@@ -192,9 +192,7 @@ def test_destructive_tool_auto_added_to_guardrail() -> None:
     # After _build, the compiled graph was created; check the guardrail was populated.
     # The easiest way is to re-inspect the destructive name detection path.
     tool_list = engine._collect_tools()
-    destructive_names = {
-        t.name for t in tool_list if (t.metadata or {}).get("gantry_destructive")
-    }
+    destructive_names = {t.name for t in tool_list if (t.metadata or {}).get("gantry_destructive")}
     assert "drop_table" in destructive_names
 
 
@@ -217,9 +215,7 @@ def test_destructive_tool_merges_with_existing_guardrail() -> None:
     engine._build()
     # shell_run was in existing guardrail; nuke should be added by destructive logic
     tool_list = engine._collect_tools()
-    destructive_names = {
-        t.name for t in tool_list if (t.metadata or {}).get("gantry_destructive")
-    }
+    destructive_names = {t.name for t in tool_list if (t.metadata or {}).get("gantry_destructive")}
     assert "nuke" in destructive_names
 
 

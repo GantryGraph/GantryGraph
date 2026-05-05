@@ -139,12 +139,8 @@ class BrowserTools(BaseAction):
         if self._page is None:
             self._playwright_ctx = await async_playwright().start()
             launcher = getattr(self._playwright_ctx, self._browser_type)
-            launch_args = (
-                ["--disable-blink-features=AutomationControlled"] if self._stealth else []
-            )
-            self._browser = await launcher.launch(
-                headless=self._headless, args=launch_args
-            )
+            launch_args = ["--disable-blink-features=AutomationControlled"] if self._stealth else []
+            self._browser = await launcher.launch(headless=self._headless, args=launch_args)
             if self._stealth:
                 self._context = await self._browser.new_context(
                     user_agent=(
@@ -333,8 +329,7 @@ class BrowserTools(BaseAction):
         class _Args(BaseModel):
             script: str = Field(
                 description=(
-                    "JavaScript expression to evaluate."
-                    " Return value is serialised to string."
+                    "JavaScript expression to evaluate. Return value is serialised to string."
                 )
             )
 
@@ -368,8 +363,7 @@ class BrowserTools(BaseAction):
             amount: int = Field(
                 default=600,
                 description=(
-                    "Pixels to scroll for 'up'/'down'"
-                    " (ignored for 'top'/'bottom'). Default 600."
+                    "Pixels to scroll for 'up'/'down' (ignored for 'top'/'bottom'). Default 600."
                 ),
             )
 

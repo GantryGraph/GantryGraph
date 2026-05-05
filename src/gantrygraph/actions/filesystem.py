@@ -46,9 +46,7 @@ class FileSystemTools(BaseAction):
         elif workspace is not None:
             self._allowed = [Path(workspace).resolve()]
         else:
-            raise ValueError(
-                "Provide workspace=, allowed_paths=, or unrestricted=True."
-            )
+            raise ValueError("Provide workspace=, allowed_paths=, or unrestricted=True.")
 
     def get_tools(self) -> list[BaseTool]:
         return [

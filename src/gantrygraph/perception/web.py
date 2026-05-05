@@ -136,12 +136,8 @@ class WebPage(BasePerception):
     async def _launch(self) -> None:
         self._playwright_ctx = await async_playwright().start()
         launcher = getattr(self._playwright_ctx, self._browser_type)
-        launch_args = (
-            ["--disable-blink-features=AutomationControlled"] if self._stealth else []
-        )
-        self._browser = await launcher.launch(
-            headless=self._headless, args=launch_args
-        )
+        launch_args = ["--disable-blink-features=AutomationControlled"] if self._stealth else []
+        self._browser = await launcher.launch(headless=self._headless, args=launch_args)
         if self._stealth:
             self._context = await self._browser.new_context(
                 user_agent=(
