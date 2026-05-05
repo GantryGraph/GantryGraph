@@ -55,10 +55,18 @@ jobs:
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short
 
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Start Xvfb
+        run: |
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1280x720x24 &
+
       - name: Run integration tests
         run: pytest tests/integration/ -v --tb=short
         env:
-          DISPLAY: ":99"  # headless display for mss on Linux
+          DISPLAY: ":99"
 
   # Smoke test: does `import claw` work from a clean install?
   import-guard:

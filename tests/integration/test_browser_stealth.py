@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 try:
-    from playwright.async_api import async_playwright
+    from playwright.async_api import async_playwright  # noqa: F401
 
     _HAS_PLAYWRIGHT = True
 except ImportError:
