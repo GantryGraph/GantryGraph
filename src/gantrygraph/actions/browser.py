@@ -332,7 +332,10 @@ class BrowserTools(BaseAction):
 
         class _Args(BaseModel):
             script: str = Field(
-                description="JavaScript expression to evaluate. Return value is serialised to string."
+                description=(
+                    "JavaScript expression to evaluate."
+                    " Return value is serialised to string."
+                )
             )
 
         async def _evaluate(script: str) -> str:
@@ -357,11 +360,17 @@ class BrowserTools(BaseAction):
         class _Args(BaseModel):
             direction: Literal["down", "up", "top", "bottom"] = Field(
                 default="down",
-                description="Scroll direction: 'down' one viewport, 'up' one viewport, 'top' to start, 'bottom' to end.",
+                description=(
+                    "Scroll direction: 'down' one viewport, 'up' one viewport,"
+                    " 'top' to start, 'bottom' to end."
+                ),
             )
             amount: int = Field(
                 default=600,
-                description="Pixels to scroll for 'up'/'down' (ignored for 'top'/'bottom'). Default 600.",
+                description=(
+                    "Pixels to scroll for 'up'/'down'"
+                    " (ignored for 'top'/'bottom'). Default 600."
+                ),
             )
 
         async def _scroll(direction: str = "down", amount: int = 600) -> str:
