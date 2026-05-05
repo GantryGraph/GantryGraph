@@ -44,8 +44,10 @@ from gantrygraph.security.policies import (
     BudgetExceededError,
     BudgetPolicy,
     GuardrailPolicy,
+    ShellDenylist,
     WorkspacePolicy,
 )
+from gantrygraph.security.secrets import GantrySecrets
 from gantrygraph.swarm.worker import WorkerSpec
 from gantrygraph.tool import gantry_tool
 from gantrygraph.vision.base import BaseVisionProvider
@@ -90,6 +92,8 @@ __all__ = [
     "WorkspacePolicy",
     "BudgetPolicy",
     "BudgetExceededError",
+    "ShellDenylist",
+    "GantrySecrets",
     # Swarm
     "WorkerSpec",
 ]

@@ -33,6 +33,7 @@ if TYPE_CHECKING:
         EventCallback,
         GuardrailPolicy,
     )
+    from gantrygraph.security.secrets import GantrySecrets
 
 from gantrygraph._utils import ensure_awaitable
 
@@ -195,6 +196,7 @@ async def act_node(
     guardrail: GuardrailPolicy | None,
     on_event: EventCallback | None,
     use_interrupt: bool = False,
+    secrets: GantrySecrets | None = None,
 ) -> dict[str, Any]:
     """Execute tool calls from the last AIMessage.
 
@@ -273,6 +275,10 @@ async def act_node(
                 )
             )
             continue
+
+        # ── Secret injection ─────────────────────────────────────────────────
+        if secrets is not None:
+            args = secrets.resolve(args)
 
         # ── Execute ──────────────────────────────────────────────────────────
         try:
