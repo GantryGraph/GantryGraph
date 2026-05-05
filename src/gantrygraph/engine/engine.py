@@ -25,6 +25,7 @@ if TYPE_CHECKING:
         GuardrailPolicy,
         WorkspacePolicy,
     )
+    from gantrygraph.security.secrets import GantrySecrets
 
 from gantrygraph._utils import _run_sync
 
@@ -116,6 +117,7 @@ class GantryEngine:
         budget: BudgetPolicy | None = None,
         workspace_policy: WorkspacePolicy | None = None,
         telemetry: Literal["silent", "stdout", "langsmith"] | None = None,
+        secrets: GantrySecrets | None = None,
     ) -> None:
         self._llm = llm
         self._perception = perception
@@ -129,6 +131,7 @@ class GantryEngine:
         self._compiled: CompiledStateGraph[Any] | None = None
         self._budget = budget
         self._workspace_policy = workspace_policy
+        self._secrets = secrets
 
         # Telemetry setup -------------------------------------------------------
         if telemetry == "silent":
@@ -380,6 +383,20 @@ class GantryEngine:
         else:
             bound_llm = self._llm
 
+        # Auto-register destructive tools into the guardrail -------------------
+        destructive_names = {
+            t.name
+            for t in tool_list
+            if (t.metadata or {}).get("gantry_destructive")
+        }
+        guardrail = self._guardrail
+        if destructive_names:
+            from gantrygraph.security.policies import GuardrailPolicy
+
+            existing = guardrail.requires_approval if guardrail is not None else set()
+            guardrail = GuardrailPolicy(requires_approval=existing | destructive_names)
+        # -----------------------------------------------------------------------
+
         from gantrygraph.engine.graph import build_graph
 
         self._compiled = build_graph(
@@ -387,7 +404,7 @@ class GantryEngine:
             bound_llm=bound_llm,
             tool_map=tool_map,
             approval_callback=self._approval_cb,
-            guardrail=self._guardrail,
+            guardrail=guardrail,
             on_event=self._event_cb,
             max_steps=self._max_steps,
             max_consecutive_errors=self._max_consecutive_errors,
@@ -395,6 +412,7 @@ class GantryEngine:
             use_interrupt=self._use_interrupt,
             checkpointer=self._checkpointer,
             budget=self._budget,
+            secrets=self._secrets,
         )
         return self._compiled
 
@@ -443,14 +461,18 @@ class GantryEngine:
         messages = []
         if self._system_prompt:
             messages.append(SystemMessage(content=self._system_prompt))
+        if self._secrets is not None:
+            messages.append(SystemMessage(content=self._secrets.system_prompt_hint()))
         messages.append(
             SystemMessage(
                 content=(
                     "You are an autonomous agent. Complete the following task step by step. "
-                    "When you are done, respond with a final summary and do not call any more tools.\n"
+                    "When you are done, respond with a final summary and do not call any more "
+                    "tools.\n"
                     "If you encounter a CAPTCHA, bot-detection wall, 'unusual traffic' notice, "
-                    "access denied, or any other blocking state you cannot resolve, stop immediately "
-                    "and report the obstacle in your final answer instead of retrying.\n"
+                    "access denied, or any other blocking state you cannot resolve, stop "
+                    "immediately and report the obstacle in your final answer instead of "
+                    "retrying.\n"
                     f"\nTask: {task}"
                 )
             )

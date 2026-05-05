@@ -47,6 +47,7 @@ def gantry_tool(
     *,
     name: str | None = None,
     description: str | None = None,
+    destructive: bool = False,
 ) -> Callable[[Callable[..., Any]], BaseTool]: ...
 
 
@@ -55,6 +56,7 @@ def gantry_tool(
     *,
     name: str | None = None,
     description: str | None = None,
+    destructive: bool = False,
 ) -> BaseTool | Callable[[Callable[..., Any]], BaseTool]:
     """Decorate a function (sync or async) and return a LangChain ``BaseTool``.
 
@@ -70,6 +72,10 @@ def gantry_tool(
         description: Tool description visible to the LLM.  Defaults to the
                      function's docstring.  **Required** if the function has
                      no docstring.
+        destructive: If ``True``, the tool is tagged so that ``GantryEngine``
+                     automatically requires human approval before it runs —
+                     without needing to list it explicitly in
+                     ``GuardrailPolicy.requires_approval``.
 
     Returns:
         A ``BaseTool`` instance (when used bare or the inner function is
@@ -89,16 +95,19 @@ def gantry_tool(
                 f"@gantry_tool on '{tool_name}' requires either a docstring"
                 " or an explicit description= argument."
             )
+        metadata: dict[str, Any] = {"gantry_destructive": True} if destructive else {}
         if inspect.iscoroutinefunction(func):
             return StructuredTool.from_function(
                 coroutine=func,
                 name=tool_name,
                 description=tool_desc,
+                metadata=metadata,
             )
         return StructuredTool.from_function(
             func=func,
             name=tool_name,
             description=tool_desc,
+            metadata=metadata,
         )
 
     if fn is not None:

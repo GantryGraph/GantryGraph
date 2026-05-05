@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gantrygraph"
-version = "0.2.0"
+version = "0.3.0"
 description = "Autonomous AI agent framework — visual computer use, MCP tools, and multi-agent swarms"
 readme = "README.md"
 license = { text = "MIT" }

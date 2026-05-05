@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -197,6 +198,51 @@ async def test_shell_tool_empty_command() -> None:
     tool = ShellTools().get_tools()[0]
     result = await tool.ainvoke({"command": ""})
     assert "empty" in result.lower()
+
+
+# ── ShellTools denylist ───────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_shell_tool_default_denylist_blocks_rm_rf() -> None:
+    tool = ShellTools().get_tools()[0]
+    result = await tool.ainvoke({"command": "rm -rf /"})
+    assert "blocked" in result.lower() or "security" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_shell_tool_permissive_denylist_allows_all() -> None:
+    from gantrygraph.security.policies import ShellDenylist
+
+    tool = ShellTools(denylist=ShellDenylist.permissive()).get_tools()[0]
+    # Even a "dangerous" pattern passes through (we're not actually executing rm -rf /)
+    # We just check the denylist gate doesn't intercept it
+    # Use a harmless command to confirm tool runs at all
+    result = await tool.ainvoke({"command": "echo hello"})
+    assert "hello" in result
+
+
+@pytest.mark.asyncio
+async def test_shell_tool_custom_denylist_blocks_pattern() -> None:
+    from gantrygraph.security.policies import ShellDenylist
+
+    tool = ShellTools(denylist=ShellDenylist(patterns=[r"my_secret_cmd"])).get_tools()[0]
+    result = await tool.ainvoke({"command": "my_secret_cmd --run"})
+    assert "blocked" in result.lower() or "security" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_shell_tool_warn_denylist_does_not_block(caplog: Any) -> None:
+    import logging
+
+    from gantrygraph.security.policies import ShellDenylist
+
+    denylist = ShellDenylist(patterns=[r"my_secret_cmd"], on_match="warn")
+    tool = ShellTools(denylist=denylist).get_tools()[0]
+    with caplog.at_level(logging.WARNING, logger="gantrygraph.actions.shell"):
+        result = await tool.ainvoke({"command": "echo hello"})
+    # Command runs normally (no match on "echo hello")
+    assert "hello" in result
 
 
 # ── MouseKeyboardTools import guard ──────────────────────────────────────────

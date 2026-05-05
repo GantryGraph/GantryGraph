@@ -1,9 +1,43 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+# ── Shell command denylist ────────────────────────────────────────────────────
+
+_DEFAULT_DENY_PATTERNS: list[str] = [
+    # Recursive deletion at filesystem root or home
+    r"rm\s+-[a-zA-Z]*r[a-zA-Z]*\s+(/|~|\$HOME\b|\$\{HOME\})",
+    # Disk wipe via dd
+    r"\bdd\s+if=/dev/(zero|urandom)\s+of=/dev/",
+    # Read SSH private keys
+    r"(cat|less|more|head|tail|tee)\s+~?/\.ssh/id_",
+    # Read system credential files
+    r"(cat|less|more|head|tail)\s+/etc/(shadow|sudoers)\b",
+    # Fork bomb
+    r":\s*\(\s*\)\s*\{[^}]*\|",
+    # Remote code execution via pipe-to-shell
+    r"(curl|wget)\s+[^\|]+\|\s*(ba)?sh\b",
+    r"(curl|wget)\s+[^\|]+\|\s*python3?\b",
+]
+
+_STRICT_DENY_PATTERNS: list[str] = [
+    # Filesystem formatting / partition editing
+    r"\bmkfs\b",
+    r"\bfdisk\b",
+    r"\bparted\b",
+    # Write to block devices
+    r">\s*/dev/sd[a-z]\b",
+    r">\s*/dev/nvme\d",
+    # Broad recursive permission change (chmod -R 777)
+    r"chmod\s+(-R\s+)?0?777\b",
+    # Environment credential dumps (alone on line)
+    r"^\s*env\s*$",
+    r"^\s*printenv\s*$",
+]
 
 ApprovalCallback = Callable[[str, dict[str, Any]], "Awaitable[bool] | bool"]
 EventCallback = Callable[["GantryEvent"], "Awaitable[None] | None"]  # noqa: F821
@@ -14,6 +48,66 @@ class BudgetExceededError(Exception):
 
     Only raised when ``BudgetPolicy.on_limit == "stop"`` (the default).
     """
+
+
+class ShellDenylist(BaseModel):
+    """Regex-based filter that intercepts dangerous shell commands before execution.
+
+    Applied by ``ShellTools`` **before** the subprocess is created. Blocking
+    happens at the Python level — the OS never sees the command.
+
+    Three built-in profiles:
+
+    ``ShellDenylist.default()``
+        Blocks catastrophic-but-rare commands (filesystem wipes, SSH key reads,
+        fork bombs, curl-pipe-bash). Safe for all production use cases.
+
+    ``ShellDenylist.strict()``
+        Adds filesystem formatting, block-device writes, recursive chmod 777,
+        and credential-env dumps on top of the default set.
+
+    ``ShellDenylist.permissive()``
+        No patterns — the developer takes full responsibility.  Use only in
+        air-gapped or fully trusted environments.
+
+    Custom patterns::
+
+        from gantrygraph.security import ShellDenylist
+
+        denylist = ShellDenylist(
+            patterns=[
+                *ShellDenylist.default().patterns,
+                r"my-internal-forbidden-cmd",
+            ],
+            on_match="warn",   # log instead of blocking
+        )
+        tools = ShellTools(workspace="/app", denylist=denylist)
+    """
+
+    patterns: list[str] = Field(default_factory=list)
+    on_match: Literal["block", "warn"] = "block"
+
+    @classmethod
+    def default(cls) -> ShellDenylist:
+        """Secure baseline — blocks catastrophic commands only."""
+        return cls(patterns=_DEFAULT_DENY_PATTERNS)
+
+    @classmethod
+    def strict(cls) -> ShellDenylist:
+        """Extended set — also blocks filesystem formatting and credential dumps."""
+        return cls(patterns=_DEFAULT_DENY_PATTERNS + _STRICT_DENY_PATTERNS)
+
+    @classmethod
+    def permissive(cls) -> ShellDenylist:
+        """No patterns — developer takes full responsibility."""
+        return cls(patterns=[])
+
+    def check(self, command: str) -> str | None:
+        """Return the first matched pattern string if the command is denied, else ``None``."""
+        for pattern in self.patterns:
+            if re.search(pattern, command, re.IGNORECASE | re.MULTILINE):
+                return pattern
+        return None
 
 
 class GuardrailPolicy(BaseModel):
@@ -165,6 +259,7 @@ __all__ = [
     "WorkspacePolicy",
     "BudgetPolicy",
     "BudgetExceededError",
+    "ShellDenylist",
     "ApprovalCallback",
     "EventCallback",
 ]

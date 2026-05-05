@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         EventCallback,
         GuardrailPolicy,
     )
+    from gantrygraph.security.secrets import GantrySecrets
 
 from gantrygraph.engine.nodes import (
     act_node,
@@ -47,6 +48,7 @@ def build_graph(
     use_interrupt: bool = False,
     checkpointer: Any = None,
     budget: BudgetPolicy | None = None,
+    secrets: GantrySecrets | None = None,
 ) -> CompiledStateGraph[Any]:
     """Build and compile the gantrygraph agent StateGraph.
 
@@ -85,6 +87,7 @@ def build_graph(
             guardrail=guardrail,
             on_event=on_event,
             use_interrupt=use_interrupt,
+            secrets=secrets,
         ),
     )
     graph.add_node("review", review_node)

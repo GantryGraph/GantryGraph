@@ -1,7 +1,10 @@
 # gantrygraph
 
-**Autonomous agent framework for Python.**  
-Screenshot → think → act. LangGraph inside. Zero boilerplate outside.
+**Autonomous agent framework for Python.** Screenshot → think → act. LangGraph inside. Zero boilerplate outside.
+
+[![PyPI](https://img.shields.io/pypi/v/gantrygraph)](https://pypi.org/project/gantrygraph/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://pypi.org/project/gantrygraph/)
 
 ```python
 from gantrygraph import GantryEngine, gantry_tool
@@ -22,6 +25,8 @@ agent = GantryEngine(
 )
 agent.run("Open PROJ-123 in Jira and submit the fix.")
 ```
+
+Full docs at [gantrygraph.com/docs](https://gantrygraph.com/docs).
 
 ---
 
@@ -49,7 +54,6 @@ pip install 'gantrygraph[desktop]'
 
 # Web scraping / form filling
 pip install 'gantrygraph[browser]'
-pip install playwright
 playwright install chromium
 
 # REST server (POST /run, SSE streaming)
@@ -61,27 +65,9 @@ pip install 'gantrygraph[all]'
 
 ---
 
-## Quick-start guides
+## Common patterns
 
-### 1 — Use a preset (zero configuration)
-
-```python
-from gantrygraph.presets import qa_agent
-from langchain_anthropic import ChatAnthropic
-
-agent = qa_agent(
-    llm=ChatAnthropic(model="claude-sonnet-4-6"),
-    workspace="/my/project",
-)
-result = agent.run("Run the test suite and fix any failures.")
-print(result)
-```
-
-Available presets: `qa_agent`, `desktop_agent`, `browser_agent`, `mcp_agent`, `cloud_agent`.
-
----
-
-### 2 — Add your own tools with `@gantry_tool`
+### Add a custom tool
 
 ```python
 from gantrygraph import GantryEngine, gantry_tool
@@ -93,144 +79,54 @@ def search_orders(query: str, limit: int = 5) -> str:
     rows = db.execute("SELECT * FROM orders WHERE ... LIMIT ?", query, limit)
     return "\n".join(str(r) for r in rows)
 
-@gantry_tool
-async def send_slack(channel: str, message: str) -> str:
-    """Post a message to a Slack channel."""
-    await slack_client.chat_postMessage(channel=channel, text=message)
-    return f"Sent to #{channel}."
+agent = GantryEngine(
+    llm=ChatAnthropic(model="claude-sonnet-4-6"),
+    tools=[search_orders],
+)
+agent.run("Find all overdue orders and summarise them.")
+```
+
+Use `@gantry_tool(destructive=True)` to tag a tool as destructive — the engine automatically gates it behind `approval_callback` without any manual guardrail config.
+
+### Filesystem and shell with security
+
+```python
+from gantrygraph import GantryEngine
+from gantrygraph.actions import FileSystemTools, ShellTools
+from gantrygraph.security import WorkspacePolicy, ShellDenylist, BudgetPolicy
+from langchain_anthropic import ChatAnthropic
 
 agent = GantryEngine(
     llm=ChatAnthropic(model="claude-sonnet-4-6"),
-    tools=[search_orders, send_slack],
+    workspace_policy=WorkspacePolicy.restricted("/app"),   # auto-wires FS + shell
+    tools=[
+        ShellTools(
+            workspace="/app",
+            allowed_commands=["pytest", "ruff", "git"],
+            denylist=ShellDenylist.strict(),               # blocks rm -rf, curl|bash, etc.
+        ),
+    ],
+    budget=BudgetPolicy(max_steps=30, max_wall_seconds=120.0),
 )
-agent.run("Find all overdue orders and notify #ops-alerts on Slack.")
+agent.run("Run the test suite, fix any lint errors, and commit the result.")
 ```
 
----
-
-### 3 — Stream events to a WebSocket
+### Connect an MCP server
 
 ```python
-import asyncio
-from gantrygraph.presets import desktop_agent
-from langchain_anthropic import ChatAnthropic
-
-agent = desktop_agent(llm=ChatAnthropic(model="claude-sonnet-4-6"))
-
-async def run_with_stream(websocket):
-    async for event in agent.astream_events("Fill in the expense report"):
-        if event.event_type == "observe":
-            screenshot = event.data.get("screenshot_b64")
-            if screenshot:
-                await websocket.send_json({"type": "screen", "data": screenshot})
-        elif event.event_type == "act":
-            await websocket.send_json({
-                "type": "action",
-                "tools": event.data["tools_executed"],
-            })
-        elif event.event_type == "done":
-            await websocket.send_json({"type": "done"})
-```
-
----
-
-### 4 — Persistent state across sessions (thread isolation)
-
-```python
-from langgraph.checkpoint.postgres import PostgresSaver
 from gantrygraph import GantryEngine
-from gantrygraph.actions.shell import ShellTool
-
-# One checkpointer shared by the whole process
-checkpointer = PostgresSaver("postgresql://user:pass@db/prod")
-
-agent = GantryEngine(
-    llm=my_llm,
-    tools=[ShellTool(workspace="/app")],
-    checkpointer=checkpointer,
-)
-
-# Each user gets their own isolated memory lane
-result = agent.run("Deploy the staging branch.", thread_id="deploy-mario-2025")
-```
-
-Crash mid-run? `arun()` resumes exactly where it left off when you pass the same `thread_id`.
-
----
-
-### 5 — MCP tool servers
-
-```python
 from gantrygraph.mcp import MCPClient
-from gantrygraph.presets import mcp_agent
 from langchain_anthropic import ChatAnthropic
 
-agent = mcp_agent(
-    ChatAnthropic(model="claude-sonnet-4-6"),
-    "npx -y @modelcontextprotocol/server-filesystem /tmp",
-    "npx -y @modelcontextprotocol/server-github",
-)
-# MCP subprocesses start automatically on first run
-result = agent.run("Open a PR that adds a CHANGELOG entry for v1.2.0.")
-```
-
----
-
-### 6 — Load config from YAML or environment variables
-
-**YAML:**
-```yaml
-# agent.yaml
-max_steps: 30
-workspace: /app
-memory: in_memory
-guardrail_requires_approval:
-  - shell_run
-  - file_delete
-```
-
-```python
-from gantrygraph import GantryConfig
-cfg = GantryConfig.from_yaml("agent.yaml")
-agent = cfg.build(llm=my_llm)
-```
-
-**Environment variables** (copy `.env.example` → `.env`):
-```bash
-CLAW_MAX_STEPS=30
-CLAW_WORKSPACE=/app
-CLAW_MEMORY=in_memory
-CLAW_GUARDRAIL_REQUIRES_APPROVAL=shell_run,file_delete
-```
-```python
-cfg = GantryConfig.from_env()
-agent = cfg.build(llm=my_llm)
-```
-
----
-
-### 7 — Deploy as a REST server
-
-```python
-# server.py
-from gantrygraph import GantryEngine
-from gantrygraph.actions.shell import ShellTool
-from gantrygraph.cloud import serve
-
-def make_agent():
-    return GantryEngine(llm=my_llm, tools=[ShellTool(workspace="/app")])
-
-serve(make_agent, host="0.0.0.0", port=8080)
-```
-
-```bash
-# POST /run  →  { "job_id": "..." }
-curl -X POST http://localhost:8080/run \
-     -H 'Content-Type: application/json' \
-     -d '{"task": "Run the test suite"}'
-
-# GET /stream/{job_id}  →  Server-Sent Events
-curl http://localhost:8080/stream/abc123
+async def main():
+    async with MCPClient("npx -y @modelcontextprotocol/server-github") as mcp:
+        agent = GantryEngine(
+            llm=ChatAnthropic(model="claude-sonnet-4-6"),
+            tools=[mcp],
+            max_steps=20,
+        )
+        result = await agent.arun("Open a PR that adds a CHANGELOG entry for v1.2.0.")
+        print(result)
 ```
 
 ---
@@ -245,13 +141,11 @@ gantrygraph/
   actions/      Mouse/keyboard (pyautogui), browser (Playwright), filesystem, shell
   mcp/          MCP client — dynamic StructuredTool generation from any MCP server
   memory/       InMemoryVector, ChromaDB
-  security/     GuardrailPolicy, WorkspacePolicy, BudgetPolicy
+  security/     GuardrailPolicy, WorkspacePolicy, BudgetPolicy, ShellDenylist, GantrySecrets
   swarm/        Multi-agent supervisor pattern
   cloud/        FastAPI REST server + SSE streaming
   telemetry/    OpenTelemetry span exporter
   tool.py       @gantry_tool decorator
-  config.py     GantryConfig — YAML / env-var driven setup
-  presets.py    Ready-made factory functions
 ```
 
 The agent loop is a LangGraph `StateGraph`:
@@ -272,63 +166,48 @@ Every node is a pure `async def`. Callbacks (`on_event`, `approval_callback`) ar
 
 ## Security
 
+GantryGraph ships with layered, opt-in security controls. The defaults are safe; every layer can be tuned or disabled as needed.
+
 ```python
-from gantrygraph import GantryEngine
-from gantrygraph.security.policies import GuardrailPolicy, WorkspacePolicy, BudgetPolicy
+import os
+from gantrygraph import GantryEngine, gantry_tool
+from gantrygraph.actions import ShellTools
+from gantrygraph.security import (
+    GuardrailPolicy, WorkspacePolicy, BudgetPolicy,
+    ShellDenylist, GantrySecrets,
+)
+
+# Tag a custom tool as destructive — auto-added to the approval gate
+@gantry_tool(destructive=True)
+def drop_table(table: str) -> str:
+    """Drop a database table permanently."""
+    ...
 
 agent = GantryEngine(
     llm=my_llm,
-    tools=[...],
-    guardrail=GuardrailPolicy(
-        requires_approval={"shell_run", "file_delete"},
-    ),
+    tools=[
+        ShellTools(
+            workspace="/app",
+            denylist=ShellDenylist.strict(),   # blocks rm -rf /, dd wipe, curl|bash, etc.
+        ),
+        drop_table,                             # auto-requires approval
+    ],
+    workspace_policy=WorkspacePolicy.restricted("/app"),
+    guardrail=GuardrailPolicy(requires_approval={"shell_run"}),
+    budget=BudgetPolicy(max_steps=50, max_tokens=20_000, max_wall_seconds=300),
     approval_callback=lambda tool, args: input(f"Allow {tool}({args})? [y/N] ") == "y",
+    secrets=GantrySecrets({"DB_PASS": os.environ["DB_PASSWORD"]}),
 )
 ```
 
-| Policy | What it does |
-|--------|-------------|
-| `GuardrailPolicy` | Require human approval before specific tools run |
-| `WorkspacePolicy` | Restrict file/shell tools to a declared directory |
-| `BudgetPolicy` | Hard cap on steps and wall-clock time |
-
----
-
-## Extending gantrygraph
-
-### New perception source
-
-```python
-from gantrygraph.core.base_perception import BasePerception
-from gantrygraph.core.events import PerceptionResult
-
-class TerminalPerception(BasePerception):
-    async def observe(self) -> PerceptionResult:
-        output = await run_command("git status")
-        return PerceptionResult(accessibility_tree=output)
-
-agent = GantryEngine(llm=..., perception=TerminalPerception(), tools=[...])
-```
-
-### New action set
-
-```python
-from gantrygraph.core.base_action import BaseAction
-from langchain_core.tools import BaseTool, StructuredTool
-
-class DatabaseTools(BaseAction):
-    def get_tools(self) -> list[BaseTool]:
-        return [self._query_tool(), self._insert_tool()]
-
-    def _query_tool(self) -> BaseTool:
-        async def _run(sql: str) -> str:
-            """Execute a read-only SQL query."""
-            return str(await self._db.fetch(sql))
-        return StructuredTool.from_function(coroutine=_run, name="db_query",
-                                            description="Run a SELECT query.")
-```
-
-See `CONTRIBUTING.md` for the full contributor guide.
+| Layer | Class | What it does |
+|-------|-------|-------------|
+| Approval gate | `GuardrailPolicy` | Require human sign-off before listed tools run |
+| Auto-approval | `@gantry_tool(destructive=True)` | Tag a tool as destructive — auto-added to the gate |
+| Shell firewall | `ShellDenylist` | Block `rm -rf /`, fork bombs, `curl\|bash`, SSH key reads before the OS sees them |
+| Blind secrets | `GantrySecrets` | Keep credentials out of the LLM context window |
+| Path sandbox | `WorkspacePolicy` | Restrict file/shell tools to allowed directories |
+| Cost cap | `BudgetPolicy` | Hard limit on steps, tokens, and wall-clock time |
 
 ---
 
@@ -339,7 +218,6 @@ git clone https://github.com/GantryGraph/GantryGraph
 cd gantrygraph
 pip install -e ".[all,dev]"
 
-# All checks
 pytest tests/unit/           # fast, no display needed
 pytest tests/integration/    # needs MCP subprocess
 mypy src/gantrygraph --strict
@@ -347,7 +225,7 @@ ruff check src/ tests/
 ruff format src/ tests/
 ```
 
-Copy `.env.example` to `.env` and fill in your API keys before running the examples.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor guide.
 
 ---
 
