@@ -385,9 +385,7 @@ class GantryEngine:
 
         # Auto-register destructive tools into the guardrail -------------------
         destructive_names = {
-            t.name
-            for t in tool_list
-            if (t.metadata or {}).get("gantry_destructive")
+            t.name for t in tool_list if (t.metadata or {}).get("gantry_destructive")
         }
         guardrail = self._guardrail
         if destructive_names:

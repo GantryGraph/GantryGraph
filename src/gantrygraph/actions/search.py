@@ -25,10 +25,7 @@ try:
 except ImportError:
     _HAS_TAVILY = False
 
-_INSTALL_MSG = (
-    "WebSearchTool requires the [search] extra: "
-    "pip install 'gantrygraph[search]'"
-)
+_INSTALL_MSG = "WebSearchTool requires the [search] extra: pip install 'gantrygraph[search]'"
 
 
 class WebSearchTool(BaseAction):
