@@ -46,7 +46,10 @@ class DesktopScreen(BasePerception):
         vision_mode: Literal["high", "low"] = "high",
     ) -> None:
         if vision_mode == "low":
-            max_resolution = (min(max_resolution[0], _LOW_RES[0]), min(max_resolution[1], _LOW_RES[1]))
+            max_resolution = (
+                min(max_resolution[0], _LOW_RES[0]),
+                min(max_resolution[1], _LOW_RES[1]),
+            )
         self._max_resolution = max_resolution
         self._monitor = monitor
         self._png_quality = png_quality
