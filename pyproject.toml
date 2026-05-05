@@ -49,6 +49,7 @@ Changelog = "https://github.com/GantryGraph/GantryGraph/releases"
 [project.optional-dependencies]
 desktop   = ["pyautogui>=0.9.54"]
 browser   = ["playwright>=1.40.0"]
+search    = ["tavily-python>=0.5.0"]
 cloud     = ["fastapi>=0.100.0", "uvicorn>=0.23.0"]
 memory    = ["chromadb>=0.5.0"]
 telemetry = [
@@ -56,7 +57,7 @@ telemetry = [
     "opentelemetry-sdk>=1.20.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
 ]
-all = ["gantrygraph[desktop,browser,cloud,memory,telemetry]"]
+all = ["gantrygraph[desktop,browser,search,cloud,memory,telemetry]"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -83,7 +84,7 @@ explicit_package_bases = true
 
 # Optional extras — ignore if not installed; when installed, stubs take over.
 [[tool.mypy.overrides]]
-module = ["playwright.*", "pyautogui.*", "chromadb.*", "mss.*", "mss.tools.*", "mouseinfo.*", "PIL.*"]
+module = ["playwright.*", "pyautogui.*", "chromadb.*", "mss.*", "mss.tools.*", "mouseinfo.*", "PIL.*", "tavily.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

@@ -8,6 +8,8 @@ Requires the ``[browser]`` extra::
 
 from __future__ import annotations
 
+import asyncio
+import random
 from typing import TYPE_CHECKING, Any, Literal
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -16,11 +18,12 @@ from pydantic import BaseModel, Field
 from gantrygraph.core.base_action import BaseAction
 
 if TYPE_CHECKING:
-    from playwright.async_api import Playwright
+    from playwright.async_api import BrowserContext, Playwright
 
 try:
     from playwright.async_api import (
         Browser,
+        BrowserContext,
         Page,
         async_playwright,
     )
@@ -33,6 +36,39 @@ _INSTALL_MSG = (
     "BrowserTools requires the [browser] extra: "
     "pip install 'gantrygraph[browser]' && playwright install chromium"
 )
+
+# Patches applied to every new page to reduce bot-detection signals.
+_STEALTH_INIT_SCRIPT = """
+(() => {
+    // Remove the webdriver flag — the #1 signal checked by simple bot detectors
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+
+    // Chrome runtime object is absent in headless builds
+    if (!window.chrome) {
+        window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){}, app: {} };
+    }
+
+    // Plugins list is empty in headless Chrome
+    if (navigator.plugins.length === 0) {
+        Object.defineProperty(navigator, 'plugins', {
+            get: () => ['PDF Viewer', 'Chrome PDF Viewer', 'Chromium PDF Viewer',
+                        'Microsoft Edge PDF Viewer', 'WebKit built-in PDF'].map(name => ({ name })),
+        });
+    }
+
+    // languages should be non-empty
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+
+    // Notifications permission query returns 'default' instead of 'denied' (headless default)
+    if (window.navigator.permissions) {
+        const _origQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
+        window.navigator.permissions.query = (params) =>
+            params.name === 'notifications'
+                ? Promise.resolve({ state: 'default', onchange: null })
+                : _origQuery(params);
+    }
+})();
+"""
 
 
 class BrowserTools(BaseAction):
@@ -81,14 +117,17 @@ class BrowserTools(BaseAction):
         self,
         browser_type: Literal["chromium", "firefox", "webkit"] = "chromium",
         headless: bool = True,
+        stealth: bool = True,
         web_page: Any = None,  # WebPage | None — Any avoids circular import
     ) -> None:
         if not _HAS_PLAYWRIGHT:
             raise ImportError(_INSTALL_MSG)
         self._browser_type = browser_type
         self._headless = headless
+        self._stealth = stealth
         self._web_page = web_page  # shared WebPage for coordinated perception+action
         self._browser: Browser | None = None
+        self._context: BrowserContext | None = None
         self._page: Page | None = None
         self._playwright_ctx: Playwright | None = None
 
@@ -100,14 +139,37 @@ class BrowserTools(BaseAction):
         if self._page is None:
             self._playwright_ctx = await async_playwright().start()
             launcher = getattr(self._playwright_ctx, self._browser_type)
-            self._browser = await launcher.launch(headless=self._headless)
-            self._page = await self._browser.new_page()
+            launch_args = (
+                ["--disable-blink-features=AutomationControlled"] if self._stealth else []
+            )
+            self._browser = await launcher.launch(
+                headless=self._headless, args=launch_args
+            )
+            if self._stealth:
+                self._context = await self._browser.new_context(
+                    user_agent=(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/125.0.0.0 Safari/537.36"
+                    ),
+                    viewport={"width": 1366, "height": 768},
+                    locale="en-US",
+                    timezone_id="America/New_York",
+                    extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+                )
+                await self._context.add_init_script(_STEALTH_INIT_SCRIPT)
+                self._page = await self._context.new_page()
+            else:
+                self._page = await self._browser.new_page()
         assert self._page is not None
         return self._page
 
     async def close(self) -> None:
         if self._web_page is not None:
             return  # lifecycle managed by the shared WebPage
+        if self._context:
+            await self._context.close()
+            self._context = None
         if self._browser:
             await self._browser.close()
             self._browser = None
@@ -120,9 +182,13 @@ class BrowserTools(BaseAction):
         return [
             self._navigate_tool(),
             self._click_tool(),
+            self._click_text_tool(),
             self._fill_tool(),
             self._get_text_tool(),
             self._get_url_tool(),
+            self._scroll_tool(),
+            self._evaluate_tool(),
+            self._wait_for_selector_tool(),
         ]
 
     def _navigate_tool(self) -> BaseTool:
@@ -152,7 +218,9 @@ class BrowserTools(BaseAction):
 
         async def _click(selector: str) -> str:
             page = await ensure()
+            await asyncio.sleep(random.uniform(0.05, 0.25))
             await page.click(selector, timeout=5000)
+            await asyncio.sleep(random.uniform(0.05, 0.15))
             return f"Clicked element matching '{selector}'."
 
         return StructuredTool.from_function(
@@ -171,7 +239,9 @@ class BrowserTools(BaseAction):
 
         async def _fill(selector: str, value: str) -> str:
             page = await ensure()
+            await asyncio.sleep(random.uniform(0.1, 0.3))
             await page.fill(selector, value, timeout=5000)
+            await asyncio.sleep(random.uniform(0.05, 0.2))
             return f"Filled '{selector}' with '{value}'."
 
         return StructuredTool.from_function(
@@ -216,4 +286,135 @@ class BrowserTools(BaseAction):
             coroutine=_get_url,
             name="browser_get_url",
             description="Get the current URL of the browser.",
+        )
+
+    def _click_text_tool(self) -> BaseTool:
+        ensure = self._ensure_browser
+
+        class _Args(BaseModel):
+            text: str = Field(description="Visible text of the button or link to click.")
+
+        async def _click_text(text: str) -> str:
+            page = await ensure()
+            await asyncio.sleep(random.uniform(0.05, 0.25))
+            # Use JS to find and click any element containing the exact visible text.
+            # More robust than CSS selectors for dynamic/complex DOMs (e.g. GDPR banners).
+            clicked: bool = await page.evaluate(
+                """(text) => {
+                    const all = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+                    const el = all.find(e => e.innerText.trim() === text
+                                           || e.textContent.trim() === text);
+                    if (!el) return false;
+                    el.click();
+                    return true;
+                }""",
+                text,
+            )
+            if not clicked:
+                return f"No clickable element found with text '{text}'."
+            await asyncio.sleep(random.uniform(0.1, 0.3))
+            return f"Clicked element with text '{text}'."
+
+        return StructuredTool.from_function(
+            coroutine=_click_text,
+            name="browser_click_text",
+            description=(
+                "Click a button, link, or interactive element by its visible text label. "
+                "Use this when browser_click fails with a selector — it searches the whole "
+                "page for any clickable element whose text matches exactly (e.g. 'Rifiuta tutto', "
+                "'Accept all', 'Submit')."
+            ),
+            args_schema=_Args,
+        )
+
+    def _evaluate_tool(self) -> BaseTool:
+        ensure = self._ensure_browser
+
+        class _Args(BaseModel):
+            script: str = Field(
+                description="JavaScript expression to evaluate. Return value is serialised to string."
+            )
+
+        async def _evaluate(script: str) -> str:
+            page = await ensure()
+            result = await page.evaluate(script)
+            return str(result)[:2000]
+
+        return StructuredTool.from_function(
+            coroutine=_evaluate,
+            name="browser_evaluate",
+            description=(
+                "Execute a JavaScript expression in the current page and return the result. "
+                "Use as a last resort when CSS selectors fail — e.g. to inspect the DOM, "
+                "click elements by text, or read hidden attributes."
+            ),
+            args_schema=_Args,
+        )
+
+    def _scroll_tool(self) -> BaseTool:
+        ensure = self._ensure_browser
+
+        class _Args(BaseModel):
+            direction: Literal["down", "up", "top", "bottom"] = Field(
+                default="down",
+                description="Scroll direction: 'down' one viewport, 'up' one viewport, 'top' to start, 'bottom' to end.",
+            )
+            amount: int = Field(
+                default=600,
+                description="Pixels to scroll for 'up'/'down' (ignored for 'top'/'bottom'). Default 600.",
+            )
+
+        async def _scroll(direction: str = "down", amount: int = 600) -> str:
+            page = await ensure()
+            if direction == "bottom":
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            elif direction == "top":
+                await page.evaluate("window.scrollTo(0, 0)")
+            elif direction == "up":
+                await page.evaluate(f"window.scrollBy(0, -{amount})")
+            else:
+                await page.evaluate(f"window.scrollBy(0, {amount})")
+            await asyncio.sleep(random.uniform(0.1, 0.2))
+            scroll_y: int = await page.evaluate("window.scrollY")
+            return f"Scrolled {direction}. Current scroll position: {scroll_y}px from top."
+
+        return StructuredTool.from_function(
+            coroutine=_scroll,
+            name="browser_scroll",
+            description=(
+                "Scroll the page. Use 'down'/'up' to move one viewport at a time, "
+                "'bottom' to jump to end of page, 'top' to return to start. "
+                "Essential for reading long pages, infinite-scroll feeds, or "
+                "revealing content below the fold."
+            ),
+            args_schema=_Args,
+        )
+
+    def _wait_for_selector_tool(self) -> BaseTool:
+        ensure = self._ensure_browser
+
+        class _Args(BaseModel):
+            selector: str = Field(description="CSS or XPath selector to wait for.")
+            timeout_ms: int = Field(
+                default=10000,
+                description="Maximum wait time in milliseconds (default 10 000).",
+            )
+
+        async def _wait_for_selector(selector: str, timeout_ms: int = 10000) -> str:
+            page = await ensure()
+            try:
+                await page.wait_for_selector(selector, timeout=timeout_ms)
+                return f"Element '{selector}' is now visible."
+            except Exception as exc:
+                return f"Timeout waiting for '{selector}': {exc}"
+
+        return StructuredTool.from_function(
+            coroutine=_wait_for_selector,
+            name="browser_wait_for_selector",
+            description=(
+                "Wait until a CSS/XPath selector becomes visible on the page. "
+                "Call this before browser_click when the page is still loading or "
+                "elements appear after JavaScript rendering."
+            ),
+            args_schema=_Args,
         )

@@ -61,8 +61,12 @@ class GantryEngine:
                            ``True`` to allow, ``False`` to deny.
         on_event:          Called after each node transition with a
                            ``GantryEvent``.  Use for logging, tracing, OTel, etc.
-        max_steps:         Hard upper bound on act-node executions.
-        guardrail:         Optional ``GuardrailPolicy`` for per-tool approval.
+        max_steps:              Hard upper bound on act-node executions.
+        max_consecutive_errors: Terminate after this many back-to-back tool
+                                failures (default 5).  Catches infinite loops
+                                caused by bot detection walls, CAPTCHAs, or
+                                other unrecoverable blocking states.
+        guardrail:              Optional ``GuardrailPolicy`` for per-tool approval.
         system_prompt:     Prepended as a ``SystemMessage`` before the task.
         memory:            Optional long-term memory backend.  Past experiences
                            are recalled at the start of each run and the result
@@ -103,6 +107,7 @@ class GantryEngine:
         approval_callback: ApprovalCallback | None = None,
         on_event: EventCallback | None = None,
         max_steps: int = 50,
+        max_consecutive_errors: int = 5,
         guardrail: GuardrailPolicy | None = None,
         system_prompt: str | None = None,
         memory: BaseMemory | None = None,
@@ -117,6 +122,7 @@ class GantryEngine:
         self._approval_cb = approval_callback
         self._event_cb = on_event
         self._max_steps = max_steps
+        self._max_consecutive_errors = max_consecutive_errors
         self._guardrail = guardrail
         self._system_prompt = system_prompt
         self._memory = memory
@@ -358,6 +364,7 @@ class GantryEngine:
             guardrail=self._guardrail,
             on_event=self._event_cb,
             max_steps=self._max_steps,
+            max_consecutive_errors=self._max_consecutive_errors,
             memory=self._memory,
             use_interrupt=self._use_interrupt,
             checkpointer=self._checkpointer,
@@ -406,8 +413,11 @@ class GantryEngine:
             SystemMessage(
                 content=(
                     "You are an autonomous agent. Complete the following task step by step. "
-                    "When you are done, respond with a final summary and do not call any more"
-                    f" tools.\n\nTask: {task}"
+                    "When you are done, respond with a final summary and do not call any more tools.\n"
+                    "If you encounter a CAPTCHA, bot-detection wall, 'unusual traffic' notice, "
+                    "access denied, or any other blocking state you cannot resolve, stop immediately "
+                    "and report the obstacle in your final answer instead of retrying.\n"
+                    f"\nTask: {task}"
                 )
             )
         )

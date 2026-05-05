@@ -32,3 +32,4 @@ class GantryState(TypedDict):
     is_done: bool
     last_error: NotRequired[str | None]
     last_observation: NotRequired[Any]
+    consecutive_errors: NotRequired[int]
