@@ -138,6 +138,8 @@ def browser_agent(
     *,
     start_url: str | None = None,
     headless: bool = True,
+    stealth: bool = True,
+    search_api_key: str | None = None,
     with_memory: bool = False,
     max_steps: int = 30,
     **kwargs: Any,
@@ -156,10 +158,15 @@ def browser_agent(
                     so the agent automatically sees the current page at each loop
                     iteration.  Without ``start_url``, the agent has no automatic
                     perception and must call ``browser_get_text`` explicitly.
-        headless:   Run the browser in headless mode (default ``True``).
-        with_memory: Add ``InMemoryVector`` for within-session recall.
-        max_steps:  Hard step cap.
-        **kwargs:   Forwarded to ``GantryEngine``.
+        headless:        Run the browser in headless mode (default ``True``).
+        stealth:         Apply anti-bot-detection patches.  Default ``True``.
+        search_api_key:  Tavily API key.  When provided, adds ``WebSearchTool``
+                         so the agent can search the web without hitting search
+                         engine CAPTCHAs.  Falls back to ``TAVILY_API_KEY`` env
+                         var if ``None``.  Requires ``pip install 'gantrygraph[search]'``.
+        with_memory:     Add ``InMemoryVector`` for within-session recall.
+        max_steps:       Hard step cap.
+        **kwargs:        Forwarded to ``GantryEngine``.
 
     Example::
 
@@ -180,15 +187,27 @@ def browser_agent(
             "pip install 'gantrygraph[browser]' && playwright install chromium"
         ) from exc
 
+    # Optional: add WebSearchTool if a Tavily key is available
+    import os
+
+    _search_key = search_api_key or os.environ.get("TAVILY_API_KEY")
+    extra_tools: list[Any] = []
+    if _search_key:
+        try:
+            from gantrygraph.actions.search import WebSearchTool
+
+            extra_tools.append(WebSearchTool(api_key=_search_key))
+        except ImportError:
+            pass  # [search] extra not installed — silently skip
+
     if start_url is not None:
-        # Share a single browser between perception and actions
         from gantrygraph.perception.web import WebPage
 
-        web = WebPage(url=start_url, headless=headless)
+        web = WebPage(url=start_url, headless=headless, stealth=stealth)
         return GantryEngine(
             llm=llm,
             perception=web,
-            tools=[BrowserTools(headless=headless, web_page=web)],
+            tools=[BrowserTools(headless=headless, stealth=stealth, web_page=web), *extra_tools],
             memory=InMemoryStore() if with_memory else None,
             max_steps=max_steps,
             **kwargs,
@@ -196,7 +215,7 @@ def browser_agent(
 
     return GantryEngine(
         llm=llm,
-        tools=[BrowserTools(headless=headless)],
+        tools=[BrowserTools(headless=headless, stealth=stealth), *extra_tools],
         memory=InMemoryStore() if with_memory else None,
         max_steps=max_steps,
         **kwargs,

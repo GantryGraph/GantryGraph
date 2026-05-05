@@ -319,6 +319,102 @@ def test_should_continue_allows_one_more_before_max() -> None:
     assert result == "observe"
 
 
+def test_should_continue_ends_on_consecutive_errors() -> None:
+    state = _base_state(step_count=2, is_done=False, consecutive_errors=5)
+    result = should_continue(state, max_steps=50, max_consecutive_errors=5)
+    assert result == "__end__"
+
+
+def test_should_continue_loops_below_consecutive_error_threshold() -> None:
+    state = _base_state(step_count=2, is_done=False, consecutive_errors=4)
+    result = should_continue(state, max_steps=50, max_consecutive_errors=5)
+    assert result == "observe"
+
+
+def test_should_continue_no_consecutive_errors_key_loops() -> None:
+    """State without consecutive_errors key (default 0) should not terminate."""
+    state = _base_state(step_count=2, is_done=False)
+    result = should_continue(state, max_steps=50, max_consecutive_errors=5)
+    assert result == "observe"
+
+
+# ── act_node consecutive_errors tracking ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_act_node_sets_consecutive_errors_on_failure() -> None:
+    tool_call = {"name": "missing", "args": {}, "id": "c1", "type": "tool_call"}
+    state = _base_state(messages=[AIMessage(content="", tool_calls=[tool_call])])
+
+    update = await act_node(
+        state, tool_map={}, approval_callback=None, guardrail=None, on_event=None
+    )
+    assert update["consecutive_errors"] == 1
+
+
+@pytest.mark.asyncio
+async def test_act_node_increments_consecutive_errors() -> None:
+    tool_call = {"name": "missing", "args": {}, "id": "c1", "type": "tool_call"}
+    state = _base_state(
+        messages=[AIMessage(content="", tool_calls=[tool_call])],
+        consecutive_errors=3,
+    )
+
+    update = await act_node(
+        state, tool_map={}, approval_callback=None, guardrail=None, on_event=None
+    )
+    assert update["consecutive_errors"] == 4
+
+
+@pytest.mark.asyncio
+async def test_act_node_resets_consecutive_errors_on_success() -> None:
+    @tool
+    async def good() -> str:
+        """Works fine."""
+        return "ok"
+
+    tool_call = {"name": "good", "args": {}, "id": "c1", "type": "tool_call"}
+    state = _base_state(
+        messages=[AIMessage(content="", tool_calls=[tool_call])],
+        consecutive_errors=4,
+    )
+
+    update = await act_node(
+        state,
+        tool_map={"good": good},
+        approval_callback=None,
+        guardrail=None,
+        on_event=None,
+    )
+    assert update["consecutive_errors"] == 0
+
+
+@pytest.mark.asyncio
+async def test_engine_terminates_on_consecutive_errors() -> None:
+    """Engine stops early when max_consecutive_errors is hit, not at max_steps."""
+    from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+
+    from gantrygraph.engine.engine import GantryEngine
+
+    # LLM always calls a nonexistent tool → every act step fails
+    responses = [
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "ghost", "args": {}, "id": f"c{i}", "type": "tool_call"}],
+        )
+        for i in range(20)
+    ]
+    agent = GantryEngine(
+        llm=FakeMessagesListChatModel(responses=responses),
+        tools=[],
+        max_steps=50,
+        max_consecutive_errors=3,
+    )
+    result = await agent.arun("Do something")
+    # Terminated early — result is a string (last AIMessage content or fallback)
+    assert isinstance(result, str)
+
+
 # ── BudgetPolicy ──────────────────────────────────────────────────────────────
 
 

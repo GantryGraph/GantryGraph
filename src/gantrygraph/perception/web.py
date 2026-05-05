@@ -16,11 +16,12 @@ from gantrygraph.core.base_perception import BasePerception
 from gantrygraph.core.events import PerceptionResult
 
 if TYPE_CHECKING:
-    from playwright.async_api import Playwright
+    from playwright.async_api import BrowserContext, Playwright
 
 try:
     from playwright.async_api import (
         Browser,
+        BrowserContext,
         Page,
         async_playwright,
     )
@@ -33,6 +34,34 @@ _INSTALL_MSG = (
     "WebPage requires the [browser] extra: "
     "pip install 'gantrygraph[browser]' && playwright install chromium"
 )
+
+# Keep in sync with actions/browser.py — same patches applied by both.
+_STEALTH_INIT_SCRIPT = """
+(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+
+    if (!window.chrome) {
+        window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){}, app: {} };
+    }
+
+    if (navigator.plugins.length === 0) {
+        Object.defineProperty(navigator, 'plugins', {
+            get: () => ['PDF Viewer', 'Chrome PDF Viewer', 'Chromium PDF Viewer',
+                        'Microsoft Edge PDF Viewer', 'WebKit built-in PDF'].map(name => ({ name })),
+        });
+    }
+
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+
+    if (window.navigator.permissions) {
+        const _origQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
+        window.navigator.permissions.query = (params) =>
+            params.name === 'notifications'
+                ? Promise.resolve({ state: 'default', onchange: null })
+                : _origQuery(params);
+    }
+})();
+"""
 
 
 class WebPage(BasePerception):
@@ -60,6 +89,7 @@ class WebPage(BasePerception):
         url: str | None = None,
         browser_type: Literal["chromium", "firefox", "webkit"] = "chromium",
         headless: bool = True,
+        stealth: bool = True,
         include_screenshot: bool = True,
         include_accessibility: bool = True,
     ) -> None:
@@ -68,9 +98,11 @@ class WebPage(BasePerception):
         self._url = url
         self._browser_type = browser_type
         self._headless = headless
+        self._stealth = stealth
         self._include_screenshot = include_screenshot
         self._include_accessibility = include_accessibility
         self._browser: Browser | None = None
+        self._context: BrowserContext | None = None
         self._page: Page | None = None
         self._playwright_ctx: Playwright | None = None
 
@@ -84,12 +116,35 @@ class WebPage(BasePerception):
     async def _launch(self) -> None:
         self._playwright_ctx = await async_playwright().start()
         launcher = getattr(self._playwright_ctx, self._browser_type)
-        self._browser = await launcher.launch(headless=self._headless)
-        self._page = await self._browser.new_page()
+        launch_args = (
+            ["--disable-blink-features=AutomationControlled"] if self._stealth else []
+        )
+        self._browser = await launcher.launch(
+            headless=self._headless, args=launch_args
+        )
+        if self._stealth:
+            self._context = await self._browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0.0.0 Safari/537.36"
+                ),
+                viewport={"width": 1366, "height": 768},
+                locale="en-US",
+                timezone_id="America/New_York",
+                extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+            )
+            await self._context.add_init_script(_STEALTH_INIT_SCRIPT)
+            self._page = await self._context.new_page()
+        else:
+            self._page = await self._browser.new_page()
         if self._url:
             await self._page.goto(self._url, wait_until="domcontentloaded")
 
     async def close(self) -> None:
+        if self._context:
+            await self._context.close()
+            self._context = None
         if self._browser:
             await self._browser.close()
             self._browser = None
@@ -122,7 +177,7 @@ class WebPage(BasePerception):
                 if snapshot:
                     accessibility_tree = json.dumps(snapshot, indent=2)
 
-        viewport = page.viewport_size or {"width": 1280, "height": 720}
+        viewport = page.viewport_size or {"width": 1366, "height": 768}
         return PerceptionResult(
             screenshot_b64=screenshot_b64,
             accessibility_tree=accessibility_tree,

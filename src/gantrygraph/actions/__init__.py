@@ -23,4 +23,8 @@ def __getattr__(name: str) -> object:
         from gantrygraph.actions.browser import BrowserTools
 
         return BrowserTools
+    if name == "WebSearchTool":
+        from gantrygraph.actions.search import WebSearchTool
+
+        return WebSearchTool
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

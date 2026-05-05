@@ -37,6 +37,7 @@ def build_graph(
     guardrail: GuardrailPolicy | None,
     on_event: EventCallback | None,
     max_steps: int,
+    max_consecutive_errors: int = 5,
     memory: BaseMemory | None = None,
     use_interrupt: bool = False,
     checkpointer: Any = None,
@@ -89,7 +90,11 @@ def build_graph(
     graph.add_edge("act", "review")
     graph.add_conditional_edges(
         "review",
-        partial(should_continue, max_steps=max_steps),
+        partial(
+            should_continue,
+            max_steps=max_steps,
+            max_consecutive_errors=max_consecutive_errors,
+        ),
         {"observe": "observe", END: END},
     )
 

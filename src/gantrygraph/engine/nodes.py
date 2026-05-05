@@ -233,12 +233,14 @@ async def act_node(
             GantryEvent("act", state["step_count"], {"tools_executed": executed_names}),
         )
 
+    has_error = any(r.status == "error" for r in tool_messages)
+    new_consecutive = state.get("consecutive_errors", 0) + 1 if has_error else 0
+
     return {
         "messages": tool_messages,
         "step_count": state["step_count"] + 1,
-        "last_error": None
-        if all(r.status != "error" for r in tool_messages)
-        else str(tool_messages[-1].content),
+        "last_error": str(tool_messages[-1].content) if has_error else None,
+        "consecutive_errors": new_consecutive,
     }
 
 
@@ -264,6 +266,7 @@ def should_continue(
     state: GantryState,
     *,
     max_steps: int,
+    max_consecutive_errors: int = 5,
 ) -> Literal["observe", "__end__"]:
     """Conditional edge: loop back to observe, or terminate."""
     from langgraph.graph import END
@@ -273,5 +276,11 @@ def should_continue(
         return END  # type: ignore[return-value]
     if state["step_count"] >= max_steps:
         logger.warning("Terminating: max_steps=%d reached", max_steps)
+        return END  # type: ignore[return-value]
+    if state.get("consecutive_errors", 0) >= max_consecutive_errors:
+        logger.warning(
+            "Terminating: %d consecutive tool errors (bot detection / stuck state?)",
+            state["consecutive_errors"],
+        )
         return END  # type: ignore[return-value]
     return "observe"
