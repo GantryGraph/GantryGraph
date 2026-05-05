@@ -76,9 +76,9 @@ def _downscale_png(png_bytes: bytes, max_size: tuple[int, int]) -> bytes:
         return png_bytes
     ratio = min(max_w / img.width, max_h / img.height)
     new_w, new_h = int(img.width * ratio), int(img.height * ratio)
-    img = img.resize((new_w, new_h), resample=3)  # LANCZOS = 3
+    resized = img.resize((new_w, new_h), resample=3)  # LANCZOS = 3
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
+    resized.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
 
 
