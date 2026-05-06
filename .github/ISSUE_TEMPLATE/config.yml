@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://gantrygraph-website.vercel.app/docs
+    about: Check the docs before opening an issue
+  - name: Community Discussions
+    url: https://github.com/GantryGraph/GantryGraph/discussions
+    about: Ask questions and share ideas
