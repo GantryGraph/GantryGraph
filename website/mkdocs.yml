@@ -58,6 +58,11 @@ nav:
       - MCP Integration: how-to/mcp.md
       - Swarm / Multi-Agent: how-to/swarm.md
       - Cloud Deploy: how-to/cloud-deploy.md
+  - Going to Production:
+      - Cost Optimization: how-to/cost-optimization.md
+      - State Persistence: how-to/persistence.md
+      - Telemetry & Observability: how-to/telemetry.md
+      - Human-in-the-Loop: how-to/hitl.md
   - API Reference: api-reference.md
 
 plugins:

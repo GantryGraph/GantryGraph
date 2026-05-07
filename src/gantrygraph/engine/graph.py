@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from langgraph.graph import END, START, StateGraph
 
@@ -49,6 +49,8 @@ def build_graph(
     checkpointer: Any = None,
     budget: BudgetPolicy | None = None,
     secrets: GantrySecrets | None = None,
+    perception_mode: Literal["vision", "axtree", "auto"] = "auto",
+    message_window: int | None = None,
 ) -> CompiledStateGraph[Any]:
     """Build and compile the gantrygraph agent StateGraph.
 
@@ -72,11 +74,22 @@ def build_graph(
     )
     graph.add_node(
         "observe",
-        partial(observe_node, perception=perception, on_event=on_event),
+        partial(
+            observe_node,
+            perception=perception,
+            on_event=on_event,
+            perception_mode=perception_mode,
+        ),
     )
     graph.add_node(
         "think",
-        partial(think_node, bound_llm=bound_llm, on_event=on_event, budget=budget),
+        partial(
+            think_node,
+            bound_llm=bound_llm,
+            on_event=on_event,
+            budget=budget,
+            message_window=message_window,
+        ),
     )
     graph.add_node(
         "act",

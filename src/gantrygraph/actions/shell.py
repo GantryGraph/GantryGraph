@@ -48,6 +48,7 @@ class ShellTools(BaseAction):
         allowed_commands: list[str] | None = None,
         timeout: float = 30.0,
         denylist: ShellDenylist | None = None,
+        max_output_chars: int = 2000,
     ) -> None:
         from gantrygraph.security.policies import ShellDenylist as _ShellDenylist
 
@@ -55,6 +56,7 @@ class ShellTools(BaseAction):
         self._allowed = set(allowed_commands) if allowed_commands else None
         self._timeout = timeout
         self._denylist = denylist if denylist is not None else _ShellDenylist.default()
+        self._max_output_chars = max_output_chars
 
     def get_tools(self) -> list[BaseTool]:
         return [self._shell_tool()]
@@ -64,6 +66,7 @@ class ShellTools(BaseAction):
         workspace = self._workspace
         timeout = self._timeout
         denylist = self._denylist
+        max_output_chars = self._max_output_chars
 
         class _Args(BaseModel):
             command: str = Field(
@@ -114,8 +117,15 @@ class ShellTools(BaseAction):
             stdout = stdout_b.decode("utf-8", errors="replace")
             stderr = stderr_b.decode("utf-8", errors="replace")
             output = (stdout + stderr).strip()
-            exit_code = proc.returncode
 
+            if len(output) > max_output_chars:
+                omitted = len(output) - max_output_chars
+                output = (
+                    f"{output[:max_output_chars]}\n"
+                    f"[{omitted:,} chars truncated — use grep/head/tail for details]"
+                )
+
+            exit_code = proc.returncode
             if exit_code != 0:
                 return f"Exit code {exit_code}:\n{output}"
             return output or "(no output)"

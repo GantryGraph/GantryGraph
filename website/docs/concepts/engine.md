@@ -56,6 +56,38 @@ agent = GantryEngine(
         print(event.event_type, event.step, event.data)
     ```
 
+## Token optimisation
+
+GantryGraph ships four orthogonal cost controls that stack on top of each other.
+Enabling all four can reduce token spend by **5–10×** on long browser tasks:
+
+```python
+agent = GantryEngine(
+    llm=...,
+    tools=[ShellTools(max_output_chars=2_000)],    # (2)
+    perception_mode="auto",                         # (1)
+    message_window=20,                              # (3)
+    enable_caching=True,                            # (4)
+)
+```
+
+1. **`perception_mode`** — `"auto"` (default) sends the accessibility tree
+   text instead of a screenshot when the DOM is readable.  Saves ~80 % per
+   observe step.  Set `"vision"` to always use screenshots (canvas apps,
+   desktop GUIs).
+2. **`max_output_chars`** on `ShellTools` — truncates stdout/stderr at
+   2 000 characters.  Prevents a single `cat large_file.log` from
+   consuming hundreds of thousands of tokens.
+3. **`message_window`** — keeps only `messages[0]` (task prompt) + the last
+   N messages in the context window sent to the LLM.  Prevents O(N²) token
+   growth over long runs.
+4. **`enable_caching`** — marks system messages with Anthropic's
+   `cache_control: {"type": "ephemeral"}`.  Up to 90 % discount on input
+   tokens for cached blocks within the 5-minute TTL.
+
+See the [Cost Optimization](../how-to/cost-optimization.md) how-to guide for
+a full before/after comparison.
+
 ## BudgetPolicy
 
 Hard limits to prevent runaway cost:

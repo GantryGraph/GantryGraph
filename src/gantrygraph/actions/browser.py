@@ -9,16 +9,18 @@ Requires the ``[browser]`` extra::
 from __future__ import annotations
 
 import asyncio
+import os
 import random
 from typing import TYPE_CHECKING, Any, Literal
 
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
+from gantrygraph import _stealth
 from gantrygraph.core.base_action import BaseAction
 
 if TYPE_CHECKING:
-    from playwright.async_api import BrowserContext, Playwright
+    from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
 try:
     from playwright.async_api import (
@@ -36,39 +38,6 @@ _INSTALL_MSG = (
     "BrowserTools requires the [browser] extra: "
     "pip install 'gantrygraph[browser]' && playwright install chromium"
 )
-
-# Patches applied to every new page to reduce bot-detection signals.
-_STEALTH_INIT_SCRIPT = """
-(() => {
-    // Remove the webdriver flag — the #1 signal checked by simple bot detectors
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-
-    // Chrome runtime object is absent in headless builds
-    if (!window.chrome) {
-        window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){}, app: {} };
-    }
-
-    // Plugins list is empty in headless Chrome
-    if (navigator.plugins.length === 0) {
-        Object.defineProperty(navigator, 'plugins', {
-            get: () => ['PDF Viewer', 'Chrome PDF Viewer', 'Chromium PDF Viewer',
-                        'Microsoft Edge PDF Viewer', 'WebKit built-in PDF'].map(name => ({ name })),
-        });
-    }
-
-    // languages should be non-empty
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-
-    // Notifications permission query returns 'default' instead of 'denied' (headless default)
-    if (window.navigator.permissions) {
-        const _origQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
-        window.navigator.permissions.query = (params) =>
-            params.name === 'notifications'
-                ? Promise.resolve({ state: 'default', onchange: null })
-                : _origQuery(params);
-    }
-})();
-"""
 
 
 class BrowserTools(BaseAction):
@@ -111,6 +80,20 @@ class BrowserTools(BaseAction):
 
         from gantrygraph.presets import browser_agent
         agent = browser_agent(llm, start_url="https://example.com")
+
+    **Persistent profile (e.g. WhatsApp Web, logged-in sites):**
+
+    When ``profile_dir`` is set, the browser stores cookies, localStorage
+    and IndexedDB across sessions.  Log in once manually (or let the agent
+    handle the QR scan / login flow on the first run) and subsequent runs
+    will reuse the saved session.
+
+    .. code-block:: python
+
+        tools = BrowserTools(
+            headless=False,          # show window for first login
+            profile_dir="~/.gantrygraph/profiles/whatsapp",
+        )
     """
 
     def __init__(
@@ -118,6 +101,7 @@ class BrowserTools(BaseAction):
         browser_type: Literal["chromium", "firefox", "webkit"] = "chromium",
         headless: bool = True,
         stealth: bool = True,
+        profile_dir: str | None = None,
         web_page: Any = None,  # WebPage | None — Any avoids circular import
     ) -> None:
         if not _HAS_PLAYWRIGHT:
@@ -125,38 +109,55 @@ class BrowserTools(BaseAction):
         self._browser_type = browser_type
         self._headless = headless
         self._stealth = stealth
-        self._web_page = web_page  # shared WebPage for coordinated perception+action
+        self._profile_dir = profile_dir
+        self._web_page = web_page
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
         self._playwright_ctx: Playwright | None = None
 
     async def _ensure_browser(self) -> Page:
-        # If sharing a WebPage, delegate browser lifecycle to it
         if self._web_page is not None:
             page: Page = await self._web_page._ensure_page()
             return page
         if self._page is None:
             self._playwright_ctx = await async_playwright().start()
             launcher = getattr(self._playwright_ctx, self._browser_type)
-            launch_args = ["--disable-blink-features=AutomationControlled"] if self._stealth else []
-            self._browser = await launcher.launch(headless=self._headless, args=launch_args)
-            if self._stealth:
-                self._context = await self._browser.new_context(
-                    user_agent=(
-                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/125.0.0.0 Safari/537.36"
-                    ),
-                    viewport={"width": 1366, "height": 768},
-                    locale="en-US",
-                    timezone_id="America/New_York",
-                    extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+
+            if self._profile_dir is not None:
+                # Persistent profile — launch_persistent_context returns a context directly.
+                profile_path = os.path.expanduser(self._profile_dir)
+                os.makedirs(profile_path, exist_ok=True)
+                launch_kw: dict[str, Any] = {
+                    "headless": self._headless,
+                    "args": _stealth.LAUNCH_ARGS if self._stealth else [],
+                }
+                if self._stealth:
+                    launch_kw.update(_stealth.context_kwargs())
+                self._context = await launcher.launch_persistent_context(
+                    profile_path, **launch_kw
                 )
-                await self._context.add_init_script(_STEALTH_INIT_SCRIPT)
-                self._page = await self._context.new_page()
+                if self._stealth:
+                    await _stealth.apply_to_context(self._context)
+                self._page = (
+                    self._context.pages[0]
+                    if self._context.pages
+                    else await self._context.new_page()
+                )
             else:
-                self._page = await self._browser.new_page()
+                self._browser = await launcher.launch(
+                    headless=self._headless,
+                    args=_stealth.LAUNCH_ARGS if self._stealth else [],
+                )
+                if self._stealth:
+                    self._context = await self._browser.new_context(
+                        **_stealth.context_kwargs()
+                    )
+                    await _stealth.apply_to_context(self._context)
+                    self._page = await self._context.new_page()
+                else:
+                    self._page = await self._browser.new_page()
+
         assert self._page is not None
         return self._page
 
@@ -169,7 +170,7 @@ class BrowserTools(BaseAction):
         if self._browser:
             await self._browser.close()
             self._browser = None
-            self._page = None
+        self._page = None
         if self._playwright_ctx:
             await self._playwright_ctx.stop()
             self._playwright_ctx = None
@@ -262,7 +263,7 @@ class BrowserTools(BaseAction):
             if element is None:
                 return f"No element found for selector '{selector}'."
             text: str = await element.inner_text()
-            return text[:4000]  # cap to avoid huge token usage
+            return text[:4000]
 
         return StructuredTool.from_function(
             coroutine=_get_text,
@@ -293,8 +294,6 @@ class BrowserTools(BaseAction):
         async def _click_text(text: str) -> str:
             page = await ensure()
             await asyncio.sleep(random.uniform(0.05, 0.25))
-            # Use JS to find and click any element containing the exact visible text.
-            # More robust than CSS selectors for dynamic/complex DOMs (e.g. GDPR banners).
             clicked: bool = await page.evaluate(
                 """(text) => {
                     const all = Array.from(document.querySelectorAll('button, a, [role="button"]'));

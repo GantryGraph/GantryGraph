@@ -40,6 +40,22 @@ from gantrygraph._utils import ensure_awaitable
 logger = logging.getLogger(__name__)
 
 
+def _trim_to_window(messages: list[Any], window: int) -> list[Any]:
+    """Return messages[0] + last ``window`` messages; never splits tool-call pairs.
+
+    messages[0] is the system/task prompt and is always kept so the LLM retains
+    its goal.  Leading ToolMessages that have lost their parent AIMessage are
+    dropped until a safe boundary is found.
+    """
+    if len(messages) <= window + 1:
+        return messages
+    head = messages[:1]
+    tail = messages[-window:]
+    while tail and isinstance(tail[0], ToolMessage):
+        tail = tail[1:]
+    return head + tail
+
+
 # ── memory recall ─────────────────────────────────────────────────────────────
 
 
@@ -66,13 +82,26 @@ async def observe_node(
     *,
     perception: BasePerception | None,
     on_event: EventCallback | None,
+    perception_mode: Literal["vision", "axtree", "auto"] = "auto",
 ) -> dict[str, Any]:
     """Capture the current environment and append it as a HumanMessage.
 
-    Screenshot diffing: if the captured screenshot is byte-for-byte identical
-    to the previous observation, the image is omitted from the message sent to
-    the LLM.  Only the accessibility tree (if any) is forwarded.  This avoids
-    re-paying vision token costs when the screen has not changed between steps.
+    Two independent token-saving mechanisms are applied before sending:
+
+    1. **Screenshot diffing**: if the screenshot is byte-for-byte identical to
+       the previous observation, the image is omitted (only the accessibility
+       tree is forwarded).
+
+    2. **Perception mode**:
+
+       - ``"auto"`` (default): send the accessibility tree text only when one
+         is available; fall back to the screenshot if not.  Drops screenshot
+         cost from ~3 000 tokens to ~300 tokens for most web pages.
+       - ``"axtree"``: always use accessibility tree only — never send
+         screenshots.  Maximum token savings; requires a perception source that
+         produces an accessibility tree (e.g. ``WebPage``).
+       - ``"vision"``: always include the screenshot.  Use when the DOM is
+         inaccessible (e.g. canvas apps, PDFs, desktop GUIs).
     """
     from gantrygraph.core.events import GantryEvent, PerceptionResult
 
@@ -100,6 +129,14 @@ async def observe_node(
         else:
             new_hash = current_hash
     # --------------------------------------------------------------------------
+
+    # Perception mode: prefer accessibility tree over screenshot to save tokens.
+    # Applied after diffing so new_hash is always computed from real pixel data.
+    if result.screenshot_b64:
+        if perception_mode == "axtree":
+            result = result.model_copy(update={"screenshot_b64": None})
+        elif perception_mode == "auto" and result.accessibility_tree:
+            result = result.model_copy(update={"screenshot_b64": None})
 
     content = result.to_message_content()
     observation = HumanMessage(content=content)  # type: ignore[arg-type]  # multimodal content list
@@ -135,8 +172,9 @@ async def think_node(
     bound_llm: BaseChatModel,
     on_event: EventCallback | None,
     budget: BudgetPolicy | None = None,
+    message_window: int | None = None,
 ) -> dict[str, Any]:
-    """Invoke the LLM with the full message history and get the next action.
+    """Invoke the LLM with the message history and get the next action.
 
     When a ``BudgetPolicy`` with ``max_tokens`` is provided, the cumulative
     token count is tracked via ``AIMessage.usage_metadata``.  On breach,
@@ -144,10 +182,21 @@ async def think_node(
 
     - ``"stop"`` (default): raises ``BudgetExceededError``.
     - ``"warn"``: logs a warning and continues.
+
+    ``message_window`` caps how many messages are sent to the LLM on each step.
+    The first message (system/task prompt) is always kept; only the most recent
+    ``message_window`` messages are appended after it.  Set to ``None`` (default)
+    to send the full history.  A value of ``20`` is a sensible starting point for
+    long-running browser agents.
     """
     from gantrygraph.core.events import GantryEvent
 
-    response: AIMessage = await bound_llm.ainvoke(state["messages"])
+    messages = (
+        _trim_to_window(state["messages"], message_window)
+        if message_window is not None
+        else state["messages"]
+    )
+    response: AIMessage = await bound_llm.ainvoke(messages)
 
     tool_names = [tc["name"] for tc in response.tool_calls] if response.tool_calls else []
     logger.debug("think step=%d tools=%s", state["step_count"], tool_names)

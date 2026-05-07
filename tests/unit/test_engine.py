@@ -11,6 +11,7 @@ from langchain_core.tools import tool
 from gantrygraph.core.events import GantryEvent, PerceptionResult
 from gantrygraph.core.state import GantryState
 from gantrygraph.engine.nodes import (
+    _trim_to_window,
     act_node,
     observe_node,
     review_node,
@@ -593,3 +594,120 @@ def test_claude_vision_is_base_vision_provider() -> None:
         warnings.simplefilter("ignore", UserWarning)
         provider = ClaudeVision(llm)  # type: ignore[arg-type]
     assert isinstance(provider, BaseVisionProvider)
+
+
+# ── _trim_to_window ───────────────────────────────────────────────────────────
+
+
+def test_trim_to_window_short_list_unchanged() -> None:
+    msgs: list[Any] = [HumanMessage(content=str(i)) for i in range(3)]
+    result = _trim_to_window(msgs, window=5)
+    assert result is msgs
+
+
+def test_trim_to_window_exact_boundary_unchanged() -> None:
+    msgs: list[Any] = [HumanMessage(content=str(i)) for i in range(6)]
+    result = _trim_to_window(msgs, window=5)
+    assert result is msgs
+
+
+def test_trim_to_window_preserves_head_and_last_n() -> None:
+    msgs: list[Any] = [HumanMessage(content=str(i)) for i in range(10)]
+    result = _trim_to_window(msgs, window=3)
+    assert len(result) == 4
+    assert result[0] is msgs[0]
+    assert result[1:] == msgs[-3:]
+
+
+def test_trim_to_window_drops_orphan_tool_messages() -> None:
+    head = HumanMessage(content="system")
+    orphan = ToolMessage(content="result", tool_call_id="x")
+    ai_msg = AIMessage(content="done")
+    msgs: list[Any] = [head, HumanMessage(content="1"), orphan, ai_msg]
+    result = _trim_to_window(msgs, window=2)
+    assert result[0] is head
+    assert not isinstance(result[1], ToolMessage)
+    assert result[1] is ai_msg
+
+
+# ── observe_node perception_mode ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_observe_node_axtree_mode_drops_screenshot() -> None:
+    perception = _MockPerception(
+        PerceptionResult(screenshot_b64="abc", accessibility_tree='{"role":"root"}')
+    )
+    state = _base_state()
+    update = await observe_node(
+        state, perception=perception, on_event=None, perception_mode="axtree"  # type: ignore[arg-type]
+    )
+    assert update["last_observation"]["screenshot_b64"] is None
+
+
+@pytest.mark.asyncio
+async def test_observe_node_auto_mode_drops_screenshot_when_axtree_present() -> None:
+    perception = _MockPerception(
+        PerceptionResult(screenshot_b64="abc", accessibility_tree='{"role":"root"}')
+    )
+    state = _base_state()
+    update = await observe_node(
+        state, perception=perception, on_event=None, perception_mode="auto"  # type: ignore[arg-type]
+    )
+    assert update["last_observation"]["screenshot_b64"] is None
+
+
+@pytest.mark.asyncio
+async def test_observe_node_auto_mode_keeps_screenshot_without_axtree() -> None:
+    perception = _MockPerception(PerceptionResult(screenshot_b64="abc"))
+    state = _base_state()
+    update = await observe_node(
+        state, perception=perception, on_event=None, perception_mode="auto"  # type: ignore[arg-type]
+    )
+    assert update["last_observation"]["screenshot_b64"] == "abc"
+
+
+@pytest.mark.asyncio
+async def test_observe_node_vision_mode_keeps_screenshot_even_with_axtree() -> None:
+    perception = _MockPerception(
+        PerceptionResult(screenshot_b64="abc", accessibility_tree='{"role":"root"}')
+    )
+    state = _base_state()
+    update = await observe_node(
+        state, perception=perception, on_event=None, perception_mode="vision"  # type: ignore[arg-type]
+    )
+    assert update["last_observation"]["screenshot_b64"] == "abc"
+
+
+# ── think_node message_window ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_think_node_message_window_trims_context() -> None:
+    """message_window limits messages sent to the LLM: head + last N."""
+    received: list[Any] = []
+
+    class _RecordingLLM:
+        async def ainvoke(self, messages: Any, **kwargs: Any) -> AIMessage:
+            received.extend(messages)
+            return AIMessage(content="done")
+
+        def bind_tools(self, tools: Any) -> _RecordingLLM:
+            return self
+
+    msgs: list[Any] = [HumanMessage(content=str(i)) for i in range(10)]
+    state = _base_state(messages=msgs)
+    await think_node(state, bound_llm=_RecordingLLM(), on_event=None, message_window=3)  # type: ignore[arg-type]
+    assert len(received) == 4  # head + last 3
+    assert received[0] == msgs[0]
+    assert received[1:] == msgs[-3:]
+
+
+@pytest.mark.asyncio
+async def test_think_node_no_window_sends_full_history(mock_llm_done_immediately: Any) -> None:
+    msgs: list[Any] = [HumanMessage(content=str(i)) for i in range(8)]
+    state = _base_state(messages=msgs)
+    update = await think_node(
+        state, bound_llm=mock_llm_done_immediately, on_event=None, message_window=None
+    )
+    assert "messages" in update
