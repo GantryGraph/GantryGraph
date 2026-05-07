@@ -45,6 +45,7 @@ from gantrygraph.security.policies import (
     BudgetPolicy,
     GuardrailPolicy,
     ShellDenylist,
+    WebhookApprovalCallback,
     WorkspacePolicy,
 )
 from gantrygraph.security.secrets import GantrySecrets
@@ -93,6 +94,7 @@ __all__ = [
     "BudgetPolicy",
     "BudgetExceededError",
     "ShellDenylist",
+    "WebhookApprovalCallback",
     "GantrySecrets",
     # Swarm
     "WorkerSpec",

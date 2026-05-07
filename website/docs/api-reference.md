@@ -70,6 +70,30 @@
 
 ::: gantrygraph.security.policies.BudgetPolicy
 
+### WebhookApprovalCallback
+
+::: gantrygraph.security.policies.WebhookApprovalCallback
+
+---
+
+## Actions
+
+### ShellTools
+
+::: gantrygraph.actions.shell.ShellTools
+
+### BrowserTools
+
+::: gantrygraph.actions.browser.BrowserTools
+
+---
+
+## Perception
+
+### WebPage
+
+::: gantrygraph.perception.web.WebPage
+
 ---
 
 ## Swarm

@@ -250,6 +250,74 @@ class BudgetPolicy(BaseModel):
     )
 
 
+class WebhookApprovalCallback:
+    """HTTP approval callback — POSTs tool info to a URL and waits for ``{"approved": bool}``.
+
+    Integrates HITL approval flows with Slack, PagerDuty, custom dashboards, or
+    any REST API without adding extra dependencies (uses stdlib ``urllib``).
+
+    The endpoint receives a ``POST`` with JSON body::
+
+        {"tool": "shell_run", "args": {"command": "rm -rf /tmp/old"}}
+
+    And must respond with::
+
+        {"approved": true}
+
+    For long human-review times, keep the connection open (long-poll) or implement
+    a separate ``/status/{id}`` endpoint.  See the HITL how-to guide for a
+    complete FastAPI + Slack example.
+
+    Example::
+
+        from gantrygraph import GantryEngine
+        from gantrygraph.security import GuardrailPolicy, WebhookApprovalCallback
+
+        agent = GantryEngine(
+            llm=...,
+            tools=[ShellTools()],
+            guardrail=GuardrailPolicy(requires_approval={"shell_run"}),
+            approval_callback=WebhookApprovalCallback(
+                url="https://myapp.com/gantry/approve",
+                timeout=300.0,            # wait up to 5 min
+                extra_headers={"X-API-Key": "secret"},
+            ),
+        )
+    """
+
+    def __init__(
+        self,
+        url: str,
+        *,
+        timeout: float = 300.0,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        self._url = url
+        self._timeout = timeout
+        self._extra_headers: dict[str, str] = extra_headers or {}
+
+    async def __call__(self, tool_name: str, args: dict[str, Any]) -> bool:
+        import asyncio
+        import json as _json
+        import urllib.request
+
+        payload = _json.dumps({"tool": tool_name, "args": args}).encode()
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            **self._extra_headers,
+        }
+        req = urllib.request.Request(self._url, data=payload, headers=headers)
+        timeout = self._timeout
+
+        def _post() -> dict[str, Any]:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw: Any = _json.loads(resp.read())
+            return raw if isinstance(raw, dict) else {}
+
+        result: dict[str, Any] = await asyncio.get_running_loop().run_in_executor(None, _post)
+        return bool(result.get("approved", False))
+
+
 # Avoid circular import: GantryEvent is defined in gantrygraph.core.events
 # The type annotation above is a forward reference (string literal) only.
 from gantrygraph.core.events import GantryEvent  # noqa: E402 (must come after class definitions)
@@ -262,4 +330,5 @@ __all__ = [
     "ShellDenylist",
     "ApprovalCallback",
     "EventCallback",
+    "WebhookApprovalCallback",
 ]

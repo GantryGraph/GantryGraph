@@ -10,13 +10,15 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from typing import TYPE_CHECKING, Literal
 
+from gantrygraph import _stealth
 from gantrygraph.core.base_perception import BasePerception
 from gantrygraph.core.events import PerceptionResult
 
 if TYPE_CHECKING:
-    from playwright.async_api import BrowserContext, Playwright
+    from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
 try:
     from playwright.async_api import (
@@ -34,34 +36,6 @@ _INSTALL_MSG = (
     "WebPage requires the [browser] extra: "
     "pip install 'gantrygraph[browser]' && playwright install chromium"
 )
-
-# Keep in sync with actions/browser.py — same patches applied by both.
-_STEALTH_INIT_SCRIPT = """
-(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-
-    if (!window.chrome) {
-        window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){}, app: {} };
-    }
-
-    if (navigator.plugins.length === 0) {
-        Object.defineProperty(navigator, 'plugins', {
-            get: () => ['PDF Viewer', 'Chrome PDF Viewer', 'Chromium PDF Viewer',
-                        'Microsoft Edge PDF Viewer', 'WebKit built-in PDF'].map(name => ({ name })),
-        });
-    }
-
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-
-    if (window.navigator.permissions) {
-        const _origQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
-        window.navigator.permissions.query = (params) =>
-            params.name === 'notifications'
-                ? Promise.resolve({ state: 'default', onchange: null })
-                : _origQuery(params);
-    }
-})();
-"""
 
 
 def _downscale_png(png_bytes: bytes, max_size: tuple[int, int]) -> bytes:
@@ -100,6 +74,20 @@ class WebPage(BasePerception):
             ...,
             perception=WebPage(url="https://example.com"),
         )
+
+    **Persistent profile (e.g. WhatsApp Web, logged-in sites):**
+
+    When ``profile_dir`` is set, the browser stores cookies, localStorage
+    and IndexedDB across sessions.  Log in once (or let the agent handle it)
+    and subsequent runs will reuse the saved session.
+
+    .. code-block:: python
+
+        web = WebPage(
+            url="https://web.whatsapp.com",
+            headless=False,   # show window for first QR scan
+            profile_dir="~/.gantrygraph/profiles/whatsapp",
+        )
     """
 
     def __init__(
@@ -108,6 +96,7 @@ class WebPage(BasePerception):
         browser_type: Literal["chromium", "firefox", "webkit"] = "chromium",
         headless: bool = True,
         stealth: bool = True,
+        profile_dir: str | None = None,
         include_screenshot: bool = True,
         include_accessibility: bool = True,
         vision_mode: Literal["high", "low"] = "high",
@@ -118,6 +107,7 @@ class WebPage(BasePerception):
         self._browser_type = browser_type
         self._headless = headless
         self._stealth = stealth
+        self._profile_dir = profile_dir
         self._include_screenshot = include_screenshot
         self._include_accessibility = include_accessibility
         self._vision_mode = vision_mode
@@ -136,25 +126,40 @@ class WebPage(BasePerception):
     async def _launch(self) -> None:
         self._playwright_ctx = await async_playwright().start()
         launcher = getattr(self._playwright_ctx, self._browser_type)
-        launch_args = ["--disable-blink-features=AutomationControlled"] if self._stealth else []
-        self._browser = await launcher.launch(headless=self._headless, args=launch_args)
-        if self._stealth:
-            self._context = await self._browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                ),
-                viewport={"width": 1366, "height": 768},
-                locale="en-US",
-                timezone_id="America/New_York",
-                extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+
+        if self._profile_dir is not None:
+            # Persistent profile — launch_persistent_context returns a context directly.
+            profile_path = os.path.expanduser(self._profile_dir)
+            os.makedirs(profile_path, exist_ok=True)
+            launch_kw: dict[str, object] = {
+                "headless": self._headless,
+                "args": _stealth.LAUNCH_ARGS if self._stealth else [],
+            }
+            if self._stealth:
+                launch_kw.update(_stealth.context_kwargs())
+            self._context = await launcher.launch_persistent_context(
+                profile_path, **launch_kw
             )
-            await self._context.add_init_script(_STEALTH_INIT_SCRIPT)
-            self._page = await self._context.new_page()
+            if self._stealth:
+                await _stealth.apply_to_context(self._context)
+            self._page = (
+                self._context.pages[0]
+                if self._context.pages
+                else await self._context.new_page()
+            )
         else:
-            self._page = await self._browser.new_page()
-        if self._url:
+            self._browser = await launcher.launch(
+                headless=self._headless,
+                args=_stealth.LAUNCH_ARGS if self._stealth else [],
+            )
+            if self._stealth:
+                self._context = await self._browser.new_context(**_stealth.context_kwargs())
+                await _stealth.apply_to_context(self._context)
+                self._page = await self._context.new_page()
+            else:
+                self._page = await self._browser.new_page()
+
+        if self._url and self._page is not None:
             await self._page.goto(self._url, wait_until="domcontentloaded")
 
     async def close(self) -> None:
@@ -164,7 +169,7 @@ class WebPage(BasePerception):
         if self._browser:
             await self._browser.close()
             self._browser = None
-            self._page = None
+        self._page = None
         if self._playwright_ctx:
             await self._playwright_ctx.stop()
             self._playwright_ctx = None
@@ -195,7 +200,8 @@ class WebPage(BasePerception):
                 if snapshot:
                     accessibility_tree = json.dumps(snapshot, indent=2)
 
-        viewport = page.viewport_size or {"width": 1366, "height": 768}
+        fallback = {"width": _stealth.VIEWPORT_W, "height": _stealth.VIEWPORT_H}
+        viewport = page.viewport_size or fallback
         return PerceptionResult(
             screenshot_b64=screenshot_b64,
             accessibility_tree=accessibility_tree,

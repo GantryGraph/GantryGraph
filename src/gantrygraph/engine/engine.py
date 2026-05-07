@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -116,8 +116,12 @@ class GantryEngine:
         enable_suspension: bool = False,
         budget: BudgetPolicy | None = None,
         workspace_policy: WorkspacePolicy | None = None,
-        telemetry: Literal["silent", "stdout", "langsmith"] | None = None,
+        telemetry: Literal["silent", "stdout", "langsmith", "json"] | None = None,
+        log_file: str | None = None,
         secrets: GantrySecrets | None = None,
+        perception_mode: Literal["vision", "axtree", "auto"] = "auto",
+        message_window: int | None = None,
+        enable_caching: bool = False,
     ) -> None:
         self._llm = llm
         self._perception = perception
@@ -132,6 +136,9 @@ class GantryEngine:
         self._budget = budget
         self._workspace_policy = workspace_policy
         self._secrets = secrets
+        self._perception_mode = perception_mode
+        self._message_window = message_window
+        self._enable_caching = enable_caching
 
         # Telemetry setup -------------------------------------------------------
         if telemetry == "silent":
@@ -155,6 +162,20 @@ class GantryEngine:
 
             os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
             os.environ.setdefault("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
+        elif telemetry == "json":
+            _json_cb: Callable[[Any], None] = _json_callback(log_file or "gantry-events.jsonl")
+            if on_event is not None:
+                _user_cb_j = on_event
+
+                async def _merged_json_cb(event: GantryEvent) -> None:
+                    _json_cb(event)
+                    from gantrygraph._utils import ensure_awaitable
+
+                    await ensure_awaitable(_user_cb_j, event)
+
+                on_event = _merged_json_cb
+            else:
+                on_event = _json_cb
         # -----------------------------------------------------------------------
 
         self._event_cb = on_event
@@ -411,6 +432,8 @@ class GantryEngine:
             checkpointer=self._checkpointer,
             budget=self._budget,
             secrets=self._secrets,
+            perception_mode=self._perception_mode,
+            message_window=self._message_window,
         )
         return self._compiled
 
@@ -456,23 +479,33 @@ class GantryEngine:
     def _initial_state(self, task: str) -> dict[str, Any]:
         from langchain_core.messages import SystemMessage
 
+        def _sys(text: str, cached: bool = False) -> SystemMessage:
+            # cache_control marks this block for Anthropic prompt caching (up to 90 % input
+            # token discount on repeated invocations within the same 5-minute TTL window).
+            # Other providers silently ignore the field.
+            if cached and self._enable_caching:
+                return SystemMessage(
+                    content=[{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
+                )
+            return SystemMessage(content=text)
+
         messages = []
         if self._system_prompt:
-            messages.append(SystemMessage(content=self._system_prompt))
+            # Large user-provided system prompt: best candidate for caching
+            messages.append(_sys(self._system_prompt, cached=True))
         if self._secrets is not None:
-            messages.append(SystemMessage(content=self._secrets.system_prompt_hint()))
+            messages.append(_sys(self._secrets.system_prompt_hint(), cached=True))
         messages.append(
-            SystemMessage(
-                content=(
-                    "You are an autonomous agent. Complete the following task step by step. "
-                    "When you are done, respond with a final summary and do not call any more "
-                    "tools.\n"
-                    "If you encounter a CAPTCHA, bot-detection wall, 'unusual traffic' notice, "
-                    "access denied, or any other blocking state you cannot resolve, stop "
-                    "immediately and report the obstacle in your final answer instead of "
-                    "retrying.\n"
-                    f"\nTask: {task}"
-                )
+            _sys(
+                "You are an autonomous agent. Complete the following task step by step. "
+                "When you are done, respond with a final summary and do not call any more "
+                "tools.\n"
+                "If you encounter a CAPTCHA, bot-detection wall, 'unusual traffic' notice, "
+                "access denied, or any other blocking state you cannot resolve, stop "
+                "immediately and report the obstacle in your final answer instead of "
+                "retrying.\n"
+                f"\nTask: {task}",
+                cached=True,
             )
         )
         return {
@@ -532,6 +565,24 @@ class GantryEngine:
                         logger.warning("Error closing action: %s", exc)
 
             self._compiled = None
+
+
+def _json_callback(log_file: str) -> Callable[[Any], None]:
+    """Return an on_event callback that appends one JSON line per event to *log_file*."""
+    import json
+    from datetime import UTC, datetime
+
+    def _cb(event: Any) -> None:
+        record = {
+            "ts": datetime.now(UTC).isoformat(),
+            "step": event.step,
+            "type": event.event_type,
+            "data": {k: v for k, v in event.data.items() if k != "screenshot_b64"},
+        }
+        with open(log_file, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+
+    return _cb
 
 
 async def _run_sync_safe(cb: Any, event: Any) -> None:
