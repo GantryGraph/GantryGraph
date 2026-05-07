@@ -4,3 +4,4 @@ mkdocstrings[python]>=0.25.0
 mkdocs-autorefs>=0.5.0
 pygments>=2.18.0
 pymdown-extensions>=10.7.0
+gantrygraph==0.5.0
