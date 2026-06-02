@@ -140,15 +140,11 @@ class WebPage(BasePerception):
             }
             if self._stealth:
                 launch_kw.update(_stealth.context_kwargs())
-            self._context = await launcher.launch_persistent_context(
-                profile_path, **launch_kw
-            )
+            self._context = await launcher.launch_persistent_context(profile_path, **launch_kw)
             if self._stealth:
                 await _stealth.apply_to_context(self._context)
             self._page = (
-                self._context.pages[0]
-                if self._context.pages
-                else await self._context.new_page()
+                self._context.pages[0] if self._context.pages else await self._context.new_page()
             )
         else:
             self._browser = await launcher.launch(

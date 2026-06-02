@@ -82,9 +82,7 @@ class PerceptionPipeline:
         self.filters = filters
         self.last_ctx: dict[str, Any] = {}
 
-    async def run(
-        self, image_bytes: bytes, ctx: dict[str, Any] | None = None
-    ) -> bytes:
+    async def run(self, image_bytes: bytes, ctx: dict[str, Any] | None = None) -> bytes:
         """Run all filters in order and return the transformed image bytes."""
         working: dict[str, Any] = dict(ctx or {})
         for f in self.filters:
@@ -218,16 +216,16 @@ _SOM_JS = """
 """
 
 _PALETTE: list[tuple[int, int, int]] = [
-    (220, 50, 50),    # red
-    (50, 140, 220),   # blue
-    (50, 180, 80),    # green
-    (200, 130, 0),    # amber
-    (150, 50, 200),   # purple
+    (220, 50, 50),  # red
+    (50, 140, 220),  # blue
+    (50, 180, 80),  # green
+    (200, 130, 0),  # amber
+    (150, 50, 200),  # purple
 ]
 
 # Fixed chip dimensions to avoid font-metric calls on Pillow's default font.
-_CHIP_CHAR_W = 7   # pixels per digit
-_CHIP_H = 15       # chip height
+_CHIP_CHAR_W = 7  # pixels per digit
+_CHIP_H = 15  # chip height
 
 
 class SetOfMarkAnnotator(ImageFilter):

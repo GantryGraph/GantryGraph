@@ -137,9 +137,7 @@ class BrowserTools(BaseAction):
                 }
                 if self._stealth:
                     launch_kw.update(_stealth.context_kwargs())
-                self._context = await launcher.launch_persistent_context(
-                    profile_path, **launch_kw
-                )
+                self._context = await launcher.launch_persistent_context(profile_path, **launch_kw)
                 if self._stealth:
                     await _stealth.apply_to_context(self._context)
                 self._page = (
@@ -153,9 +151,7 @@ class BrowserTools(BaseAction):
                     args=_stealth.LAUNCH_ARGS if self._stealth else [],
                 )
                 if self._stealth:
-                    self._context = await self._browser.new_context(
-                        **_stealth.context_kwargs()
-                    )
+                    self._context = await self._browser.new_context(**_stealth.context_kwargs())
                     await _stealth.apply_to_context(self._context)
                     self._page = await self._context.new_page()
                 else:
@@ -452,10 +448,7 @@ class BrowserTools(BaseAction):
             info = som.get(element_id)
             if info is None:
                 available = sorted(som.keys())[:20]
-                return (
-                    f"No element with SoM ID {element_id}. "
-                    f"Available IDs: {available}"
-                )
+                return f"No element with SoM ID {element_id}. Available IDs: {available}"
             page = await ensure()
             tag = info.get("tag", "?")
             text = info.get("text", "")
