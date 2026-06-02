@@ -640,7 +640,10 @@ async def test_observe_node_axtree_mode_drops_screenshot() -> None:
     )
     state = _base_state()
     update = await observe_node(
-        state, perception=perception, on_event=None, perception_mode="axtree"  # type: ignore[arg-type]
+        state,
+        perception=perception,
+        on_event=None,
+        perception_mode="axtree",  # type: ignore[arg-type]
     )
     assert update["last_observation"]["screenshot_b64"] is None
 
@@ -652,7 +655,10 @@ async def test_observe_node_auto_mode_drops_screenshot_when_axtree_present() -> 
     )
     state = _base_state()
     update = await observe_node(
-        state, perception=perception, on_event=None, perception_mode="auto"  # type: ignore[arg-type]
+        state,
+        perception=perception,
+        on_event=None,
+        perception_mode="auto",  # type: ignore[arg-type]
     )
     assert update["last_observation"]["screenshot_b64"] is None
 
@@ -662,7 +668,10 @@ async def test_observe_node_auto_mode_keeps_screenshot_without_axtree() -> None:
     perception = _MockPerception(PerceptionResult(screenshot_b64="abc"))
     state = _base_state()
     update = await observe_node(
-        state, perception=perception, on_event=None, perception_mode="auto"  # type: ignore[arg-type]
+        state,
+        perception=perception,
+        on_event=None,
+        perception_mode="auto",  # type: ignore[arg-type]
     )
     assert update["last_observation"]["screenshot_b64"] == "abc"
 
@@ -674,7 +683,10 @@ async def test_observe_node_vision_mode_keeps_screenshot_even_with_axtree() -> N
     )
     state = _base_state()
     update = await observe_node(
-        state, perception=perception, on_event=None, perception_mode="vision"  # type: ignore[arg-type]
+        state,
+        perception=perception,
+        on_event=None,
+        perception_mode="vision",  # type: ignore[arg-type]
     )
     assert update["last_observation"]["screenshot_b64"] == "abc"
 
