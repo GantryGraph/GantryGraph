@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from gantrygraph import _stealth
 from gantrygraph.core.base_action import BaseAction
+from gantrygraph.vision.pipeline import PerceptionPipeline
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, Page, Playwright
@@ -103,6 +104,7 @@ class BrowserTools(BaseAction):
         stealth: bool = True,
         profile_dir: str | None = None,
         web_page: Any = None,  # WebPage | None — Any avoids circular import
+        vision_pipeline: PerceptionPipeline | None = None,
     ) -> None:
         if not _HAS_PLAYWRIGHT:
             raise ImportError(_INSTALL_MSG)
@@ -111,6 +113,7 @@ class BrowserTools(BaseAction):
         self._stealth = stealth
         self._profile_dir = profile_dir
         self._web_page = web_page
+        self._vision_pipeline = vision_pipeline
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
@@ -176,7 +179,7 @@ class BrowserTools(BaseAction):
             self._playwright_ctx = None
 
     def get_tools(self) -> list[BaseTool]:
-        return [
+        tools = [
             self._navigate_tool(),
             self._click_tool(),
             self._click_text_tool(),
@@ -187,6 +190,9 @@ class BrowserTools(BaseAction):
             self._evaluate_tool(),
             self._wait_for_selector_tool(),
         ]
+        if self._vision_pipeline is not None:
+            tools.append(self._click_som_tool())
+        return tools
 
     def _navigate_tool(self) -> BaseTool:
         ensure = self._ensure_browser
@@ -417,6 +423,63 @@ class BrowserTools(BaseAction):
                 "Wait until a CSS/XPath selector becomes visible on the page. "
                 "Call this before browser_click when the page is still loading or "
                 "elements appear after JavaScript rendering."
+            ),
+            args_schema=_Args,
+        )
+
+    def _click_som_tool(self) -> BaseTool:
+        """Click an element by its Set-of-Mark ID from the last observation."""
+        ensure = self._ensure_browser
+        pipeline = self._vision_pipeline
+
+        class _Args(BaseModel):
+            element_id: int = Field(
+                description=(
+                    "Numeric ID shown on the annotated screenshot "
+                    "(the number inside the coloured box)."
+                )
+            )
+
+        async def _click_som(element_id: int) -> str:
+            if pipeline is None:
+                return "No vision_pipeline configured on BrowserTools."
+            som = pipeline.som_map
+            if not som:
+                return (
+                    "SoM map is empty — call observe() first so "
+                    "SetOfMarkAnnotator can build the element index."
+                )
+            info = som.get(element_id)
+            if info is None:
+                available = sorted(som.keys())[:20]
+                return (
+                    f"No element with SoM ID {element_id}. "
+                    f"Available IDs: {available}"
+                )
+            page = await ensure()
+            tag = info.get("tag", "?")
+            text = info.get("text", "")
+            selector = info.get("selector")
+            if selector:
+                try:
+                    await page.click(selector, timeout=5000)
+                    return f"Clicked SoM {element_id} ({tag}: '{text}') via selector {selector}."
+                except Exception:
+                    pass  # fall through to coordinate click
+            cx: int = info["cx"]
+            cy: int = info["cy"]
+            await page.mouse.click(cx, cy)
+            return f"Clicked SoM {element_id} ({tag}: '{text}') at ({cx}, {cy})."
+
+        return StructuredTool.from_function(
+            coroutine=_click_som,
+            name="browser_click_som",
+            description=(
+                "Click an interactive element by its Set-of-Mark ID. "
+                "Use this when the screenshot shows numbered coloured boxes — "
+                "provide the number to click that element. "
+                "More reliable than browser_click because the ID maps to an exact "
+                "DOM element rather than a coordinate guess."
             ),
             args_schema=_Args,
         )

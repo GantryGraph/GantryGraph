@@ -53,6 +53,14 @@ from gantrygraph.swarm.worker import WorkerSpec
 from gantrygraph.tool import gantry_tool
 from gantrygraph.vision.base import BaseVisionProvider
 from gantrygraph.vision.claude import ClaudeVision
+from gantrygraph.vision.pipeline import (
+    ConvertToWebP,
+    Downsample,
+    Grayscale,
+    ImageFilter,
+    PerceptionPipeline,
+    SetOfMarkAnnotator,
+)
 
 __all__ = [
     # Engine
@@ -82,9 +90,16 @@ __all__ = [
     "MemoryResult",
     # Perception
     "MultiPerception",
-    # Vision preprocessing
+    # Vision preprocessing — LLM providers
     "BaseVisionProvider",
     "ClaudeVision",
+    # Vision preprocessing — screenshot pipeline
+    "ImageFilter",
+    "PerceptionPipeline",
+    "Downsample",
+    "Grayscale",
+    "ConvertToWebP",
+    "SetOfMarkAnnotator",
     # Memory
     "InMemoryStore",
     "InMemoryVector",  # backward compat

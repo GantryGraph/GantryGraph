@@ -40,6 +40,8 @@ Full docs at [gantrygraph.com](https://gantrygraph.com).
 | Human-in-the-loop (suspend / resume) | ✅ | manual | partial |
 | Stealth browser (bot-detection bypass) | ✅ built-in | ❌ | ❌ |
 | Persistent browser sessions | ✅ `profile_dir` | ❌ | ❌ |
+| Set-of-Mark: click by element ID, not coords | ✅ built-in | ❌ | ❌ |
+| Screenshot pipeline (annotate / compress) | ✅ built-in | ❌ | ❌ |
 | `import gantrygraph` never fails | ✅ | — | — |
 | Strict-typed (mypy strict) | ✅ | partial | ❌ |
 
@@ -145,6 +147,47 @@ result = agent.run(
     "Open WhatsApp Web, find 'Mamma', and send the Cacio e Pepe recipe."
 )
 ```
+
+### Vision pipeline — annotated screenshots and precise clicks
+
+Attach a `PerceptionPipeline` to `WebPage` and `BrowserTools` to transform
+screenshots before they reach the LLM. The `SetOfMarkAnnotator` draws numbered
+boxes over every interactive element; the agent then calls `browser_click_som(element_id=N)`
+instead of guessing pixel coordinates — 100% precision on every labelled element.
+
+```python
+from gantrygraph import GantryEngine
+from gantrygraph.actions import BrowserTools
+from gantrygraph.perception import WebPage
+from gantrygraph.vision import (
+    PerceptionPipeline,
+    SetOfMarkAnnotator,   # numbered boxes on every interactive element
+    Downsample,           # cap resolution before encoding
+    ConvertToWebP,        # ~30% smaller payload vs PNG
+)
+from langchain_anthropic import ChatAnthropic
+
+pipeline = PerceptionPipeline([
+    SetOfMarkAnnotator(),        # run first — bounding boxes at full resolution
+    Downsample(max_width=1280),  # then shrink
+    ConvertToWebP(quality=85),   # then compress
+])
+
+web = WebPage(url="https://example.com", vision_pipeline=pipeline)
+tools = BrowserTools(web_page=web, vision_pipeline=pipeline)
+# pipeline enables browser_click_som — click element #3 on the annotated screenshot
+
+agent = GantryEngine(
+    llm=ChatAnthropic(model="claude-sonnet-4-6"),
+    perception=web,
+    tools=[tools],
+    max_steps=30,
+)
+agent.run("Click the 'Accept cookies' button and fill in the signup form.")
+```
+
+Filters are composable — subclass `ImageFilter` to add your own (custom crop,
+watermark removal, domain-specific annotation).
 
 ### Connect an MCP server
 
@@ -255,6 +298,7 @@ gantrygraph/
   swarm/        Multi-agent supervisor pattern
   cloud/        FastAPI REST server + SSE streaming
   telemetry/    OpenTelemetry span exporter
+  vision/       Screenshot pipeline (SetOfMarkAnnotator, Downsample, ConvertToWebP, Grayscale)
   tool.py       @gantry_tool decorator
 ```
 

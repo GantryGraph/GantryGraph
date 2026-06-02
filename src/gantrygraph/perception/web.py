@@ -11,11 +11,12 @@ from __future__ import annotations
 import base64
 import json
 import os
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gantrygraph import _stealth
 from gantrygraph.core.base_perception import BasePerception
 from gantrygraph.core.events import PerceptionResult
+from gantrygraph.vision.pipeline import PerceptionPipeline
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, Page, Playwright
@@ -100,6 +101,7 @@ class WebPage(BasePerception):
         include_screenshot: bool = True,
         include_accessibility: bool = True,
         vision_mode: Literal["high", "low"] = "high",
+        vision_pipeline: PerceptionPipeline | None = None,
     ) -> None:
         if not _HAS_PLAYWRIGHT:
             raise ImportError(_INSTALL_MSG)
@@ -111,6 +113,7 @@ class WebPage(BasePerception):
         self._include_screenshot = include_screenshot
         self._include_accessibility = include_accessibility
         self._vision_mode = vision_mode
+        self._vision_pipeline = vision_pipeline
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
@@ -188,8 +191,11 @@ class WebPage(BasePerception):
         accessibility_tree: str | None = None
 
         if self._include_screenshot:
-            png_bytes = await page.screenshot(type="png")
-            if self._vision_mode == "low":
+            png_bytes: bytes = await page.screenshot(type="png")
+            if self._vision_pipeline is not None:
+                ctx: dict[str, Any] = {"page": page}
+                png_bytes = await self._vision_pipeline.run(png_bytes, ctx)
+            elif self._vision_mode == "low":
                 png_bytes = _downscale_png(png_bytes, (1280, 720))
             screenshot_b64 = base64.b64encode(png_bytes).decode("ascii")
 
