@@ -127,7 +127,7 @@ class Downsample(ImageFilter):
             return image_bytes
         ratio = self.max_width / img.width
         new_size = (self.max_width, int(img.height * ratio))
-        resized = img.resize(new_size, resample=Image.LANCZOS)
+        resized = img.resize(new_size, resample=Image.Resampling.LANCZOS)
         buf = io.BytesIO()
         resized.save(buf, format=img.format or "PNG", optimize=True)
         return buf.getvalue()
