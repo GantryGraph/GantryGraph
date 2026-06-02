@@ -275,9 +275,13 @@ async def act_node(
         call_id: str = tool_call["id"] or ""
 
         # ── Approval gate ────────────────────────────────────────────────────
-        needs_approval = approval_callback is not None or (
-            guardrail is not None and name in guardrail.requires_approval
-        )
+        # When a guardrail is set, only tools in requires_approval need sign-off.
+        # When no guardrail is set but a callback is, every tool needs sign-off
+        # (backward-compatible: callback alone = approve-all).
+        if guardrail is not None:
+            needs_approval = name in guardrail.requires_approval
+        else:
+            needs_approval = approval_callback is not None
         if needs_approval:
             if use_interrupt:
                 from langgraph.types import interrupt

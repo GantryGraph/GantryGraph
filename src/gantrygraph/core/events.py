@@ -30,10 +30,21 @@ class PerceptionResult(BaseModel):
                 {"type": "text", "text": f"Accessibility tree:\n{self.accessibility_tree}"}
             )
         if self.screenshot_b64:
+            # Detect actual format from base64 magic prefix (no decode needed).
+            # PNG  → \x89PNG  → iVBOR…
+            # WebP → RIFF…WEBP → UklGR…
+            # JPEG → \xff\xd8\xff → /9j/
+            pfx = self.screenshot_b64[:6]
+            if pfx.startswith("UklGR"):
+                media_type = "image/webp"
+            elif pfx.startswith("/9j/"):
+                media_type = "image/jpeg"
+            else:
+                media_type = "image/png"
             parts.append(
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{self.screenshot_b64}"},
+                    "image_url": {"url": f"data:{media_type};base64,{self.screenshot_b64}"},
                 }
             )
         if not parts:

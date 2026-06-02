@@ -187,7 +187,13 @@ class WebPage(BasePerception):
         accessibility_tree: str | None = None
 
         if self._include_screenshot:
-            png_bytes: bytes = await page.screenshot(type="png")
+            try:
+                png_bytes: bytes = await page.screenshot(type="png")
+            except Exception:
+                # Page was closed or navigated away (e.g. a click opened a new tab).
+                # Re-acquire the active page and retry once.
+                page = await self._ensure_page()
+                png_bytes = await page.screenshot(type="png")
             if self._vision_pipeline is not None:
                 ctx: dict[str, Any] = {"page": page}
                 png_bytes = await self._vision_pipeline.run(png_bytes, ctx)
