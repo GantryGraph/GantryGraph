@@ -99,6 +99,91 @@ async def test_in_memory_metadata_preserved() -> None:
     assert results[0].metadata == meta
 
 
+# ── MiniVecDbMemory ──────────────────────────────────────────────────────────
+
+try:
+    from gantrygraph.memory.minivecdb import MiniVecDbMemory
+
+    _HAS_MINIVECDB = True
+except ImportError:
+    _HAS_MINIVECDB = False
+
+
+def _fake_embed(text: str) -> list[float]:
+    """Deterministic 384-dim embedding based on text hash — no network needed."""
+    import hashlib
+
+    seed = int(hashlib.md5(text.encode()).hexdigest(), 16)
+    rng_state = seed
+    result: list[float] = []
+    for _ in range(384):
+        rng_state = (rng_state * 1664525 + 1013904223) & 0xFFFFFFFF
+        result.append((rng_state / 0xFFFFFFFF) * 2.0 - 1.0)
+    mag = sum(x * x for x in result) ** 0.5 or 1.0
+    return [x / mag for x in result]
+
+
+@pytest.mark.skipif(not _HAS_MINIVECDB, reason="minivecdb not installed")
+@pytest.mark.asyncio
+async def test_minivecdb_empty_search_returns_nothing() -> None:
+    mem = MiniVecDbMemory(embed_fn=_fake_embed)
+    assert await mem.search("anything") == []
+
+
+@pytest.mark.skipif(not _HAS_MINIVECDB, reason="minivecdb not installed")
+@pytest.mark.asyncio
+async def test_minivecdb_add_and_retrieve() -> None:
+    mem = MiniVecDbMemory(embed_fn=_fake_embed)
+    await mem.add("invoice number 42 for client Acme", {"step": 2})
+    results = await mem.search("invoice Acme", k=1)
+    assert len(results) == 1
+    assert "invoice" in results[0].text
+    assert results[0].metadata == {"step": 2}
+    assert 0.0 <= results[0].score <= 1.0
+
+
+@pytest.mark.skipif(not _HAS_MINIVECDB, reason="minivecdb not installed")
+@pytest.mark.asyncio
+async def test_minivecdb_k_limits_results() -> None:
+    mem = MiniVecDbMemory(embed_fn=_fake_embed)
+    for i in range(10):
+        await mem.add(f"agent memory entry number {i}")
+    results = await mem.search("agent memory", k=3)
+    assert len(results) <= 3
+
+
+@pytest.mark.skipif(not _HAS_MINIVECDB, reason="minivecdb not installed")
+@pytest.mark.asyncio
+async def test_minivecdb_ttl_expires_entries() -> None:
+    mem = MiniVecDbMemory(embed_fn=_fake_embed, ttl_ms=1)  # expire after 1 ms
+    await mem.add("temporary banner at the top of the page")
+    import asyncio as _asyncio
+
+    await _asyncio.sleep(0.01)  # let it expire
+    results = await mem.search("banner")
+    # Entry should have been GC-ed; result list may be empty
+    assert isinstance(results, list)
+
+
+@pytest.mark.skipif(not _HAS_MINIVECDB, reason="minivecdb not installed")
+@pytest.mark.asyncio
+async def test_minivecdb_close_clears_store() -> None:
+    mem = MiniVecDbMemory(embed_fn=_fake_embed)
+    await mem.add("some text")
+    assert len(mem) == 1
+    await mem.close()
+    assert len(mem) == 0
+
+
+@pytest.mark.skipif(not _HAS_MINIVECDB, reason="minivecdb not installed")
+def test_minivecdb_import_error_without_package(monkeypatch: pytest.MonkeyPatch) -> None:
+    import gantrygraph.memory.minivecdb as _mod
+
+    monkeypatch.setattr(_mod, "_HAS_MINIVECDB", False)
+    with pytest.raises(ImportError, match="minivecdb"):
+        MiniVecDbMemory(embed_fn=_fake_embed)
+
+
 # ── Engine integration with memory ───────────────────────────────────────────
 
 

@@ -63,6 +63,12 @@ playwright install chromium
 # REST server (POST /run, SSE streaming)
 pip install 'gantrygraph[cloud]'
 
+# Persistent semantic memory (ChromaDB)
+pip install 'gantrygraph[memory]'
+
+# Ultra-light TTL memory — Rust HNSW, 48 bytes/vector, entries auto-expire
+pip install 'gantrygraph[minivecdb]'
+
 # Everything
 pip install 'gantrygraph[all]'
 ```
@@ -293,7 +299,7 @@ gantrygraph/
   perception/   Desktop screenshot (mss+PIL), web accessibility (Playwright)
   actions/      Mouse/keyboard (pyautogui), browser (Playwright), filesystem, shell
   mcp/          MCP client — dynamic StructuredTool generation from any MCP server
-  memory/       InMemoryVector, ChromaDB
+  memory/       InMemoryStore, ChromaDB, MiniVecDb (Rust HNSW + TTL)
   security/     GuardrailPolicy, WorkspacePolicy, BudgetPolicy, ShellDenylist, GantrySecrets
   swarm/        Multi-agent supervisor pattern
   cloud/        FastAPI REST server + SSE streaming
