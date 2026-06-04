@@ -59,7 +59,7 @@ telemetry = [
     "opentelemetry-sdk>=1.20.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
 ]
-all = ["gantrygraph[desktop,desktop-ax,browser,search,cloud,memory,minivecdb,telemetry]"]
+all = ["gantrygraph[desktop,browser,search,cloud,memory,minivecdb,telemetry]"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
