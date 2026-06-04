@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gantrygraph"
-version = "0.7.0"
+version = "0.8.0"
 description = "Autonomous AI agent framework — visual computer use, MCP tools, and multi-agent swarms"
 readme = "README.md"
 license = { text = "MIT" }
@@ -47,7 +47,8 @@ Repository = "https://github.com/GantryGraph/GantryGraph"
 Changelog = "https://github.com/GantryGraph/GantryGraph/releases"
 
 [project.optional-dependencies]
-desktop   = ["pyautogui>=0.9.54"]
+desktop    = ["pyautogui>=0.9.54"]
+desktop-ax = ["atomacos>=3.0.0"]
 browser   = ["playwright>=1.40.0", "playwright-stealth>=1.0.6"]
 search    = ["tavily-python>=0.5.0"]
 cloud     = ["fastapi>=0.100.0", "uvicorn>=0.23.0"]
@@ -58,7 +59,7 @@ telemetry = [
     "opentelemetry-sdk>=1.20.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
 ]
-all = ["gantrygraph[desktop,browser,search,cloud,memory,minivecdb,telemetry]"]
+all = ["gantrygraph[desktop,desktop-ax,browser,search,cloud,memory,minivecdb,telemetry]"]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
@@ -85,7 +86,7 @@ explicit_package_bases = true
 
 # Optional extras — ignore if not installed; when installed, stubs take over.
 [[tool.mypy.overrides]]
-module = ["playwright.*", "playwright_stealth.*", "pyautogui.*", "chromadb.*", "minivecdb.*", "mss.*", "mss.tools.*", "mouseinfo.*", "PIL.*", "tavily.*"]
+module = ["playwright.*", "playwright_stealth.*", "pyautogui.*", "chromadb.*", "minivecdb.*", "atomacos.*", "mss.*", "mss.tools.*", "mouseinfo.*", "PIL.*", "tavily.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

@@ -5,14 +5,19 @@ which extras are installed.
 
 Available classes:
 - ``DesktopScreen``    — always available (``mss`` + ``pillow`` are core deps)
+- ``DesktopAXTree``    — requires ``[desktop-ax]`` extra (macOS only)
 - ``WebPage``          — requires ``[browser]`` extra
 - ``MultiPerception``  — always available; combines multiple sources in parallel
 """
 
-__all__ = ["DesktopScreen", "MultiPerception", "WebPage"]
+__all__ = ["DesktopAXTree", "DesktopScreen", "MultiPerception", "WebPage"]
 
 
 def __getattr__(name: str) -> object:
+    if name == "DesktopAXTree":
+        from gantrygraph.perception.desktop_ax import DesktopAXTree
+
+        return DesktopAXTree
     if name == "DesktopScreen":
         from gantrygraph.perception.desktop import DesktopScreen
 

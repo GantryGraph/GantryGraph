@@ -118,6 +118,122 @@ async def test_desktop_result_produces_valid_message_content() -> None:
     assert url.startswith("data:image/png;base64,")
 
 
+# ── DesktopAXTree ─────────────────────────────────────────────────────────────
+
+try:
+    from gantrygraph.perception.desktop_ax import DesktopAXTree as _DesktopAXTree
+    from gantrygraph.perception.desktop_ax import _serialize_node
+
+    _HAS_DESKTOP_AX = True
+except ImportError:
+    _HAS_DESKTOP_AX = False
+
+
+class _FakeAXNode:
+    """Minimal stand-in for an atomacos AXUIElement."""
+
+    def __init__(
+        self,
+        role: str,
+        title: str = "",
+        value: str = "",
+        description: str = "",
+        children: list[object] | None = None,
+        enabled: bool = True,
+        focused: bool = False,
+    ) -> None:
+        self.AXRole = role
+        self.AXTitle = title
+        self.AXValue = value
+        self.AXDescription = description
+        self.AXChildren = children or []
+        self.AXEnabled = enabled
+        self.AXFocused = focused
+
+
+@pytest.mark.skipif(not _HAS_DESKTOP_AX, reason="atomacos not installed")
+def test_serialize_node_basic() -> None:
+    lines: list[str] = []
+    node = _FakeAXNode("AXButton", title="Save")
+    _serialize_node(node, depth=0, max_depth=4, max_children=10, max_text=100, lines=lines)
+    assert any("AXButton" in ln for ln in lines)
+    assert any("Save" in ln for ln in lines)
+
+
+@pytest.mark.skipif(not _HAS_DESKTOP_AX, reason="atomacos not installed")
+def test_serialize_node_text_area_includes_value() -> None:
+    lines: list[str] = []
+    node = _FakeAXNode("AXTextArea", value="hello world")
+    _serialize_node(node, depth=0, max_depth=4, max_children=10, max_text=100, lines=lines)
+    assert any("hello world" in ln for ln in lines)
+
+
+@pytest.mark.skipif(not _HAS_DESKTOP_AX, reason="atomacos not installed")
+def test_serialize_node_skips_unknown_role() -> None:
+    lines: list[str] = []
+    node = _FakeAXNode("AXUnknown")
+    _serialize_node(node, depth=0, max_depth=4, max_children=10, max_text=100, lines=lines)
+    assert lines == []
+
+
+@pytest.mark.skipif(not _HAS_DESKTOP_AX, reason="atomacos not installed")
+def test_serialize_node_respects_max_depth() -> None:
+    deep = _FakeAXNode("AXButton", title="deep")
+    mid = _FakeAXNode("AXGroup", children=[deep])
+    root = _FakeAXNode("AXWindow", children=[mid])
+    lines: list[str] = []
+    _serialize_node(root, depth=0, max_depth=1, max_children=10, max_text=100, lines=lines)
+    # max_depth=1 means we render root (depth 0) and its children (depth 1), but not deeper
+    assert not any("deep" in ln for ln in lines)
+
+
+@pytest.mark.skipif(not _HAS_DESKTOP_AX, reason="atomacos not installed")
+def test_serialize_node_overflow_message() -> None:
+    children = [_FakeAXNode("AXButton", title=str(i)) for i in range(10)]
+    root = _FakeAXNode("AXGroup", children=children)
+    lines: list[str] = []
+    _serialize_node(root, depth=0, max_depth=4, max_children=3, max_text=100, lines=lines)
+    assert any("more children" in ln for ln in lines)
+
+
+@pytest.mark.skipif(not _HAS_DESKTOP_AX, reason="atomacos not installed")
+def test_serialize_node_focused_tag() -> None:
+    lines: list[str] = []
+    node = _FakeAXNode("AXTextField", focused=True)
+    _serialize_node(node, depth=0, max_depth=4, max_children=10, max_text=100, lines=lines)
+    assert any("focused" in ln for ln in lines)
+
+
+@pytest.mark.skipif(not _HAS_DESKTOP_AX, reason="atomacos not installed")
+def test_desktop_ax_tree_import_error_without_package(monkeypatch: pytest.MonkeyPatch) -> None:
+    import gantrygraph.perception.desktop_ax as _mod
+
+    monkeypatch.setattr(_mod, "_HAS_ATOMACOS", False)
+    with pytest.raises(ImportError, match="atomacos"):
+        _DesktopAXTree()
+
+
+@pytest.mark.skipif(not _HAS_DESKTOP_AX, reason="atomacos not installed")
+@pytest.mark.asyncio
+async def test_desktop_ax_tree_observe_returns_perception_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import gantrygraph.perception.desktop_ax as _mod
+
+    fake_tree = "AXApplication 'TestApp'\n  AXWindow 'Main'"
+    monkeypatch.setattr(_mod, "_build_tree", lambda *a, **kw: fake_tree)
+
+    perception = _DesktopAXTree()
+    result = await perception.observe()
+
+    assert isinstance(result, PerceptionResult)
+    assert result.accessibility_tree == fake_tree
+    assert result.screenshot_b64 is None
+    content = result.to_message_content()
+    assert content[0]["type"] == "text"
+    assert "AXApplication" in content[0]["text"]
+
+
 # ── WebPage import guard ──────────────────────────────────────────────────────
 
 

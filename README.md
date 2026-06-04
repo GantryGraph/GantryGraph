@@ -69,6 +69,9 @@ pip install 'gantrygraph[memory]'
 # Ultra-light TTL memory — Rust HNSW, 48 bytes/vector, entries auto-expire
 pip install 'gantrygraph[minivecdb]'
 
+# macOS accessibility tree — interact with any native app, zero vision tokens
+pip install 'gantrygraph[desktop-ax]'
+
 # Everything
 pip install 'gantrygraph[all]'
 ```
@@ -300,6 +303,7 @@ gantrygraph/
   actions/      Mouse/keyboard (pyautogui), browser (Playwright), filesystem, shell
   mcp/          MCP client — dynamic StructuredTool generation from any MCP server
   memory/       InMemoryStore, ChromaDB, MiniVecDb (Rust HNSW + TTL)
+  perception/   DesktopScreen (screenshot), DesktopAXTree (macOS AX API), WebPage (Playwright)
   security/     GuardrailPolicy, WorkspacePolicy, BudgetPolicy, ShellDenylist, GantrySecrets
   swarm/        Multi-agent supervisor pattern
   cloud/        FastAPI REST server + SSE streaming
