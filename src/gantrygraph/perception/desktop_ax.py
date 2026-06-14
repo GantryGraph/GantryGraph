@@ -224,6 +224,13 @@ class DesktopAXTree(BasePerception):
         agent.run("Find the note titled 'Q2 Goals' and append a new bullet point.")
     """
 
+    _app_name: str | None
+    _bundle_id: str | None
+    _include_screenshot: bool
+    _max_depth: int
+    _max_children: int
+    _max_text: int
+
     def __init__(
         self,
         app_name: str | None = None,
