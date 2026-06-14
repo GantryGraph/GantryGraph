@@ -79,6 +79,7 @@ def serve(
     engine_factory: Callable[[], Any],
     host: str = "0.0.0.0",
     port: int = 8080,
+    cors_origins: list[str] | None = None,
 ) -> None:
     """Start a FastAPI HTTP server that exposes a GantryEngine via REST.
 
@@ -87,14 +88,19 @@ def serve(
                         ``GantryEngine`` instance.
         host:           Bind host (default ``0.0.0.0``).
         port:           Bind port (default ``8080``).
+        cors_origins:   List of allowed CORS origins (e.g. ``["http://localhost:3000"]``).
+                        Pass ``["*"]`` to allow all origins.  ``None`` disables CORS.
     """
     if not _HAS_CLOUD:
         raise ImportError(_INSTALL_MSG)
-    app = _build_app(engine_factory)
+    app = _build_app(engine_factory, cors_origins=cors_origins)
     uvicorn.run(app, host=host, port=port)
 
 
-def _build_app(engine_factory: Callable[[], Any]) -> FastAPI:
+def _build_app(
+    engine_factory: Callable[[], Any],
+    cors_origins: list[str] | None = None,
+) -> FastAPI:
     """Build the FastAPI app (separated from uvicorn for testability)."""
     if not _HAS_CLOUD:
         raise ImportError(_INSTALL_MSG)
@@ -104,6 +110,16 @@ def _build_app(engine_factory: Callable[[], Any]) -> FastAPI:
         description="REST API for GantryEngine autonomous agents.",
         version="0.1.0",
     )
+
+    if cors_origins is not None:
+        from fastapi.middleware.cors import CORSMiddleware
+
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     # ── POST /run ─────────────────────────────────────────────────────────────
 

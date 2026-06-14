@@ -116,10 +116,7 @@ class MiniVecDbMemory(BaseMemory):
             await loop.run_in_executor(None, lambda: self._db.run_gc(self._ttl_ms))
             # Mirror the expiry on the Python-side text store
             now = int(time.time() * 1000)
-            expired = {
-                did for did, ts in self._inserted_at.items()
-                if now - ts > self._ttl_ms
-            }
+            expired = {did for did, ts in self._inserted_at.items() if now - ts > self._ttl_ms}
             for did in expired:
                 self._texts.pop(did, None)
                 self._inserted_at.pop(did, None)
@@ -127,9 +124,7 @@ class MiniVecDbMemory(BaseMemory):
                 return []
         # Rebuild HNSW graph if new entries were added since last search
         if self._dirty:
-            await loop.run_in_executor(
-                None, lambda: self._db.build_index(self._m, self._ef)
-            )
+            await loop.run_in_executor(None, lambda: self._db.build_index(self._m, self._ef))
             self._dirty = False
         vector: list[float] = await loop.run_in_executor(None, self._embed, query)
         n = min(k, len(self._texts))

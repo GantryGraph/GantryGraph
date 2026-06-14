@@ -176,8 +176,14 @@ def _build_tree(
         windows = []
 
     for win in windows:
-        _serialize_node(win, depth=1, max_depth=max_depth,
-                        max_children=max_children, max_text=max_text, lines=lines)
+        _serialize_node(
+            win,
+            depth=1,
+            max_depth=max_depth,
+            max_children=max_children,
+            max_text=max_text,
+            lines=lines,
+        )
 
     return "\n".join(lines)
 

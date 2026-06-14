@@ -221,6 +221,8 @@ async def test_desktop_ax_tree_observe_returns_perception_result(
     import gantrygraph.perception.desktop_ax as _mod
 
     fake_tree = "AXApplication 'TestApp'\n  AXWindow 'Main'"
+    monkeypatch.setattr(_mod, "_HAS_ATOMACOS", True)
+    monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(_mod, "_build_tree", lambda *a, **kw: fake_tree)
 
     perception = _DesktopAXTree()
